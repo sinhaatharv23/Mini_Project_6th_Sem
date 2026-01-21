@@ -1,0 +1,195 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Video, 
+  Upload, 
+  Settings, 
+  Calendar, 
+  MoreHorizontal,
+  Rocket, // Added Rocket for the logo
+  User    // Added User for profile
+} from 'lucide-react';
+
+const Dashboard = () => {
+  const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+
+  // 1. Scroll Listener (Matches LoginScreen logic)
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    // 'min-h-screen' ensures full height. 
+    // We removed 'overflow-hidden' from the body so the scroll animation can actually trigger if needed.
+    <div className="min-h-screen w-full bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30 flex flex-col relative">
+      
+      {/* =======================
+          LEFT FLOATING ISLAND (LOGO)
+          Matches LoginScreen Exact Style
+          ======================= */}
+      <div 
+        className={`fixed z-50 transition-all duration-700 ease-in-out
+          ${scrolled ? 'top-6 left-4' : 'top-0 left-0 p-8'}
+        `}
+      >
+        <div className={`flex items-center transition-all duration-700 border border-white/10 shadow-2xl
+          ${scrolled 
+            ? 'flex-col space-y-4 bg-slate-900/20 backdrop-blur-md p-3 rounded-full' 
+            : 'flex-row space-x-3 bg-slate-900/20 backdrop-blur-md px-6 py-3 rounded-full' 
+          }
+        `}>
+          <div className="bg-blue-500 p-1.5 rounded-lg shadow-lg shadow-blue-500/20 z-10">
+            <Rocket size={20} className="text-white" />
+          </div>
+          
+          <span 
+            className={`font-bold tracking-tight text-shadow drop-shadow-md transition-all duration-700 origin-left text-white
+              ${scrolled ? 'vertical-text text-sm py-2 opacity-80' : 'text-lg'}
+            `}
+            style={{ writingMode: scrolled ? 'vertical-rl' : 'horizontal-tb', textOrientation: 'mixed' }}
+          >
+            PeerInterview<span className="text-blue-500">.io</span>
+          </span>
+        </div>
+      </div>
+
+      {/* =======================
+          RIGHT FLOATING ISLAND (SETTINGS & PROFILE)
+          Matches LoginScreen Exact Style
+          ======================= */}
+      <div 
+        className={`fixed z-50 transition-all duration-700 ease-in-out flex items-center
+          ${scrolled ? 'top-6 right-4 flex-col-reverse gap-3' : 'top-0 right-0 p-8 flex-row gap-4'}
+        `}
+      >
+        {/* Settings Button */}
+        <button className={`transition-all duration-500 rounded-full hover:text-white backdrop-blur-sm border border-white/10 hover:border-white/10
+           ${scrolled 
+             ? 'bg-slate-900/10 backdrop-blur-xl p-3 border text-slate-300 hover:bg-white/10 border-white/10' 
+             : 'p-2 text-slate-300 hover:bg-white/10 backdrop-blur-sm'
+           }
+        `}>
+            <Settings size={20} />
+        </button>
+
+        {/* Profile Button */}
+        <button className={`flex items-center transition-all duration-700 group backdrop-blur-sm
+            ${scrolled
+              ? 'flex-col p-2 rounded-full bg-slate-900/10 border border-white/10 space-y-0 h-auto w-auto' 
+              : 'space-x-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10' 
+            }
+        `}>
+            <div className="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md z-10">
+                JD
+            </div>
+            
+            <span className={`text-sm font-medium text-slate-200 group-hover:text-white transition-all duration-500
+                ${scrolled ? 'h-0 w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}
+            `}>
+              John Doe
+            </span>
+        </button>
+      </div>
+
+
+      {/* --- MAIN CONTENT --- */}
+      {/* Added pt-32 to clear the floating header */}
+      <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-8 pb-8 pt-32">
+        
+        {/* 1. WELCOME SECTION (Compact) */}
+        <div className="flex-none mb-8">
+            <h1 className="text-4xl font-light text-white mb-2">
+                Hello, <span className="font-semibold">John</span>.
+            </h1>
+            <p className="text-slate-500">Ready to prepare for your next big opportunity?</p>
+        </div>
+
+
+        {/* 2. STATS ROW (Fixed Height) */}
+        <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* Card 1 */}
+            <div className="p-5 rounded-3xl bg-slate-900/50 border border-white/5 flex flex-col justify-between h-36 relative overflow-hidden group hover:border-white/10 transition-colors">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Calendar size={60} />
+                </div>
+                <div>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Sessions</p>
+                    <h3 className="text-3xl font-bold text-white mt-1">24</h3>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 w-fit px-2 py-1 rounded-full">
+                    <span>+2 THIS WEEK</span>
+                </div>
+            </div>
+
+            {/* Card 2 */}
+             <div className="p-5 rounded-3xl bg-slate-900/50 border border-white/5 flex flex-col justify-between h-36 hover:border-white/10 transition-colors">
+                <div>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Average Rating</p>
+                    <h3 className="text-3xl font-bold text-white mt-1">4.8</h3>
+                </div>
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-indigo-500 h-full w-[96%] rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                </div>
+            </div>
+
+             {/* Card 3 */}
+             <div className="p-5 rounded-3xl bg-slate-900/50 border border-white/5 flex flex-col justify-between h-36 border-dashed border-slate-800 hover:bg-slate-900/80 transition-colors cursor-pointer">
+                <div className="flex justify-center items-center h-full text-slate-600 gap-2 group">
+                    <MoreHorizontal size={20} className="group-hover:text-slate-400 transition-colors"/>
+                    <span className="text-sm font-medium group-hover:text-slate-400 transition-colors">View Schedule</span>
+                </div>
+            </div>
+        </div>
+
+
+        {/* 3. MAIN ACTIONS (Flex-1 to Fill Screen) */}
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
+            
+            {/* JOIN MEETING BUTTON */}
+            <button 
+                onClick={() => navigate('/room')}
+                className="group relative w-full h-full rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-900 p-1 text-left shadow-2xl shadow-indigo-900/20 transition-all hover:scale-[1.01] hover:shadow-indigo-900/40"
+            >
+                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')] opacity-10 mix-blend-overlay bg-cover bg-center transition-transform duration-700 group-hover:scale-110"></div>
+                
+                <div className="relative h-full w-full bg-slate-950/0 p-8 flex flex-col justify-end">
+                    <div className="mb-auto bg-white/10 w-14 h-14 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-colors shadow-lg">
+                        <Video className="text-white" size={28} />
+                    </div>
+                    <div>
+                        <h2 className="text-4xl font-bold text-white mb-2">Join Meeting</h2>
+                        <p className="text-indigo-200/80 text-base">Start a P2P interview session instantly.</p>
+                    </div>
+                </div>
+            </button>
+
+
+            {/* UPLOAD RESUME BUTTON */}
+            <button className="group relative w-full h-full rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 p-8 text-left transition-all hover:border-slate-700 hover:bg-slate-800/80">
+                <div className="absolute top-8 right-8 text-slate-700 group-hover:text-slate-600 transition-colors">
+                    <Upload size={48} strokeWidth={1} />
+                </div>
+                
+                <div className="flex flex-col justify-end h-full">
+                     <div className="mb-auto bg-slate-800 w-14 h-14 rounded-2xl flex items-center justify-center border border-white/5 group-hover:bg-slate-700 transition-colors shadow-lg">
+                        <Upload className="text-slate-300" size={24} />
+                    </div>
+                    <div>
+                        <h2 className="text-4xl font-bold text-slate-200 mb-2 group-hover:text-white">Upload Resume</h2>
+                        <p className="text-slate-500 text-base group-hover:text-slate-400">Parse your CV for better peer matching.</p>
+                    </div>
+                </div>
+            </button>
+
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default Dashboard;

@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+
+@font-face {
+  font-family: 'sfprobold';  
+  src: url('./assets/fonts/SFPRODISPLAYBOLD.OTF') format('opentype'); 
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'sfproregular';  
+  src: url('./assets/fonts/SFPRODISPLAYREGULAR.OTF') format('opentype'); 
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'sfproblackitalic';  
+  src: url('./assets/fonts/SFPRODISPLAYBLACKITALIC.OTF') format('opentype'); 
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'sfproheavyitalic'; 
+  src: url('./assets/fonts/SFPRODISPLAYHEAVYITALIC.OTF') format('opentype'); 
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'sfprolightitalic'; 
+  src: url('./assets/fonts/SFPRODISPLAYLIGHTITALIC.OTF') format('opentype'); 
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'sfpromedium'; 
+  src: url('./assets/fonts/SFPRODISPLAYMEDIUM.OTF') format('opentype'); 
+  font-weight: normal;
+  font-style: normal;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-900 text-white;
+}
