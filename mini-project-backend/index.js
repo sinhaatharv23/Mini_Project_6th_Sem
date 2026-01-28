@@ -58,61 +58,61 @@ const cors = require('cors');
 const connectDB = require('./db');
 const authRoute = require('./routes/auth');
 
-// Initialize App
 const app = express();
 const server = http.createServer(app);
 
-// 1. Connect to Database (MongoDB)
+// 1. Connect to MongoDB
 connectDB();
 
 // 2. Middleware
 app.use(cors());
-app.use(express.json()); // Allows parsing JSON from frontend requests
+app.use(express.json());
 
-// 3. API Routes (Authentication)
+// 3. Auth Routes
 app.use('/api/auth', authRoute);
 
 // 4. Socket.io Setup
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173", // Your Vite Frontend URL
+        origin: "http://localhost:5173", // Make sure this matches your frontend port
         methods: ["GET", "POST"],
     },
 });
 
-// --- Your Existing Video Call Logic Merged Here ---
+// --- VIDEO CALL LOGIC ---
 
-let waitingUser = null; // Keeps track of who is waiting for a peer
+let waitingUser = null; 
+const activeCalls = {}; // Stores pairs: { socketId: partnerSocketId }
 
 io.on("connection", (socket) => {
     console.log("User Connected:", socket.id);
 
-    // Join Room / Matchmaking Logic
     socket.on("join-room", () => {
-        console.log("join-room received from:", socket.id);
-        
         if (waitingUser) {
-            // Match the current user with the waiting user
+            // Match found!
             const peer1 = waitingUser;
             const peer2 = socket.id;
 
-            console.log(`Matching ${peer1} with ${peer2}`);
+            console.log(`Matched: ${peer1} <-> ${peer2}`);
 
-            // Notify both users
+            // 1. Notify both users
             io.to(peer1).emit("matched", { peerId: peer2 });
             io.to(peer2).emit("matched", { peerId: peer1 });
 
-            // Reset waiting user
+            // 2. Save the pair in memory so we know who to disconnect later
+            activeCalls[peer1] = peer2;
+            activeCalls[peer2] = peer1;
+
             waitingUser = null;
         } else {
-            // No one is waiting, so this user becomes the waiting user
+            // Wait for a partner
             waitingUser = socket.id;
             socket.emit("waiting");
-            console.log(`User ${socket.id} is now waiting...`);
+            console.log(`Waiting: ${socket.id}`);
         }
     });
 
-    // Signaling Events (WebRTC Handshake)
+    // Signaling (Pass data between peers)
     socket.on("offer", ({ to, offer }) => {
         io.to(to).emit("offer", { from: socket.id, offer });
     });
@@ -125,12 +125,23 @@ io.on("connection", (socket) => {
         io.to(to).emit("ice-candidate", { from: socket.id, candidate });
     });
 
-    // Handle Disconnect
+    // --- DISCONNECT FIX ---
     socket.on("disconnect", () => {
         console.log("User Disconnected:", socket.id);
-        // If the disconnected user was the one waiting, clear the slot
+
+        // 1. If they were waiting, remove them from the line
         if (waitingUser === socket.id) {
             waitingUser = null;
+        }
+
+        // 2. If they were in a call, notify the partner
+        const partnerId = activeCalls[socket.id];
+        if (partnerId) {
+            io.to(partnerId).emit("peer-disconnected"); // We will handle this in Frontend
+            
+            // Clean up memory
+            delete activeCalls[socket.id];
+            delete activeCalls[partnerId];
         }
     });
 });

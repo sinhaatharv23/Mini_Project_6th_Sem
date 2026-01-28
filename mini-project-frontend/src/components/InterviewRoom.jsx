@@ -90,27 +90,58 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   };
 
   // ✅ FIX: Initialize socket once
+  // useEffect(() => {
+  //   // ✅ Create socket connection only once
+  //   socketRef.current = io("http://localhost:5000");
+
+  //   socketRef.current.on("connect", () => {
+  //     console.log("✅ Socket connected:", socketRef.current.id);
+  //     setMySocketId(socketRef.current.id);
+  //   });
+
+  //   socketRef.current.on("disconnect", () => {
+  //     console.log("❌ Socket disconnected");
+  //   });
+
+  //   return () => {
+  //     // ✅ Cleanup socket properly
+  //     if (socketRef.current) {
+  //       socketRef.current.disconnect();
+  //       socketRef.current = null;
+  //     }
+  //   };
+  // }, []);   //previous 
+
   useEffect(() => {
-    // ✅ Create socket connection only once
-    socketRef.current = io("http://localhost:5000");
+  socketRef.current = io("http://localhost:5000");
 
-    socketRef.current.on("connect", () => {
-      console.log("✅ Socket connected:", socketRef.current.id);
-      setMySocketId(socketRef.current.id);
-    });
+  socketRef.current.on("connect", () => {
+    console.log("Socket connected:", socketRef.current.id);
+    setMySocketId(socketRef.current.id);
+  });
 
-    socketRef.current.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
-    });
+  socketRef.current.on("disconnect", () => {
+    console.log("Socket disconnected");
+  });
 
-    return () => {
-      // ✅ Cleanup socket properly
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-  }, []);
+  socketRef.current.on("peer-disconnected", () => {
+    alert("Partner ended the call.");
+    setMatched(false);
+    // optional hard reset:
+    // window.location.reload();
+  });
+
+  return () => {
+    if (socketRef.current) {
+      socketRef.current.off("peer-disconnected");
+      socketRef.current.off("connect");
+      socketRef.current.off("disconnect");
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+  };
+}, []); //added by Binit 
+
 
   // ✅ Start media + join matchmaking
   useEffect(() => {
