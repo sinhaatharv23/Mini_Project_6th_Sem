@@ -6,33 +6,29 @@ import {
   Video,
   VideoOff,
   PhoneOff,
-  MessageSquare,
-  Settings,
-  MoreVertical,
   Layout,
   Clock,
+  Settings,
 } from "lucide-react";
 
 const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [status, setStatus] = useState("Connecting...");
+  const [peerId, setPeerId] = useState(null); // Used to track if we are matched
 
-  const [peerId, setPeerId] = useState(null);
-  const [mySocketId, setMySocketId] = useState(null);
-
-  // ✅ FIX: socket should be created once per component mount (stable)
+  // Refs for persistent objects
   const socketRef = useRef(null);
-
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-
   const localStreamRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const remoteStreamRef = useRef(new MediaStream());
-
-  // ✅ FIX: Buffer ICE candidates until remoteDescription is set
   const pendingIceCandidatesRef = useRef([]);
+
+  // Get logged-in user from storage
+  const currentUser = JSON.parse(localStorage.getItem("user")) || {};
+
 
   const iceServers = {
     iceServers: [
@@ -41,24 +37,148 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     ],
   };
 
-  // ✅ Start camera/mic
-  const startLocalStream = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
+  // 1. Initialize System (Socket + Media)
+  useEffect(() => {
+    // A. Start Local Media First
+    const startMedia = async () => {
+      try {
+        setStatus("Starting camera...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+        // Only connect socket after media is ready
+        connectSocket(); 
+      } catch (err) {
+        console.error("Camera Error:", err);
+        setStatus("Camera Permission Denied ❌");
+      }
+    };
+
+    startMedia();
+
+    // Cleanup on Unmount
+    return () => {
+      cleanupConnection();
+    };
+  }, []);
+
+  // 2. Socket Logic
+  const connectSocket = () => {
+    socketRef.current = io("http://localhost:5000" ,{
+      query : {
+        username: currentUser.username || "Annoymous"
+      }
+    }); // Ensure this matches your Backend PORT
+
+    const socket = socketRef.current;
+
+    socket.on("connect", () => {
+      console.log("✅ Socket Connected:", socket.id);
+      setStatus("Finding peer...");
+      socket.emit("join-room");
     });
 
-    localStreamRef.current = stream;
+    socket.on("waiting", () => {
+      setStatus("Waiting for a partner...");
+    });
 
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-    }
+    socket.on("matched", async ({ peerId: remotePeerId ,partnerName }) => {
+      console.log("🤝 Matched with:", partnerName);
+      setPeerId(remotePeerId);
+      setStatus(`Connected to ${partnerName}`);
+
+      // Initialize WebRTC Connection
+      createPeerConnection(remotePeerId);
+
+      // Determine who initiates the offer (to avoid glare)
+      // The user with the "smaller" ID string creates the offer
+      if (socket.id < remotePeerId) {
+        console.log("I am the initiator");
+        const offer = await peerConnectionRef.current.createOffer();
+        await peerConnectionRef.current.setLocalDescription(offer);
+        socket.emit("offer", { to: remotePeerId, offer });
+      }
+    });
+
+    socket.on("offer", async ({ from, offer }) => {
+      console.log("📩 Received Offer");
+      if (!peerConnectionRef.current) createPeerConnection(from);
+
+      await peerConnectionRef.current.setRemoteDescription(offer);
+      
+      // Process any queued ICE candidates
+      processPendingCandidates();
+
+      const answer = await peerConnectionRef.current.createAnswer();
+      await peerConnectionRef.current.setLocalDescription(answer);
+      socket.emit("answer", { to: from, answer });
+    });
+
+    socket.on("answer", async ({ answer }) => {
+      console.log("📩 Received Answer");
+      await peerConnectionRef.current.setRemoteDescription(answer);
+      processPendingCandidates();
+    });
+
+    socket.on("ice-candidate", async ({ candidate }) => {
+      if (peerConnectionRef.current) {
+        if (peerConnectionRef.current.remoteDescription) {
+          await peerConnectionRef.current.addIceCandidate(candidate);
+        } else {
+          // Buffer candidates if remote description isn't set yet
+          pendingIceCandidatesRef.current.push(candidate);
+        }
+      }
+    });
+
+    // 🔴 HANDLE PARTNER DISCONNECT
+    socket.on("peer-disconnected", () => {
+      alert("Partner has left the interview.");
+      setStatus("Partner Disconnected");
+      setPeerId(null);
+      
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+      
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null; // Clear remote video
+      }
+      
+      // Optional: Automatically search for new peer
+      // socket.emit("join-room");
+    });
   };
 
-  // ✅ Create peer connection
   const createPeerConnection = (targetPeerId) => {
-    const pc = new RTCPeerConnection(iceServers);
+    if (peerConnectionRef.current) return;
 
+    const pc = new RTCPeerConnection(iceServers);
+    peerConnectionRef.current = pc;
+
+    // Add local tracks to the connection
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+    }
+
+    // Handle incoming streams
+    pc.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+      remoteStreamRef.current = remoteStream;
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+    };
+
+    // Handle ICE Candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
         socketRef.current.emit("ice-candidate", {
@@ -67,269 +187,61 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
         });
       }
     };
-
-    pc.ontrack = (event) => {
-      event.streams[0].getTracks().forEach((track) => {
-        remoteStreamRef.current.addTrack(track);
-      });
-
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log("🔗 connectionState:", pc.connectionState);
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log("❄️ iceConnectionState:", pc.iceConnectionState);
-    };
-
-    return pc;
   };
 
-  // ✅ FIX: Initialize socket once
-  // useEffect(() => {
-  //   // ✅ Create socket connection only once
-  //   socketRef.current = io("http://localhost:5000");
-
-  //   socketRef.current.on("connect", () => {
-  //     console.log("✅ Socket connected:", socketRef.current.id);
-  //     setMySocketId(socketRef.current.id);
-  //   });
-
-  //   socketRef.current.on("disconnect", () => {
-  //     console.log("❌ Socket disconnected");
-  //   });
-
-  //   return () => {
-  //     // ✅ Cleanup socket properly
-  //     if (socketRef.current) {
-  //       socketRef.current.disconnect();
-  //       socketRef.current = null;
-  //     }
-  //   };
-  // }, []);   //previous 
-
-  useEffect(() => {
-  socketRef.current = io("http://localhost:5000");
-
-  socketRef.current.on("connect", () => {
-    console.log("Socket connected:", socketRef.current.id);
-    setMySocketId(socketRef.current.id);
-  });
-
-  socketRef.current.on("disconnect", () => {
-    console.log("Socket disconnected");
-  });
-
-  socketRef.current.on("peer-disconnected", () => {
-    alert("Partner ended the call.");
-    setMatched(false);
-    // optional hard reset:
-    // window.location.reload();
-  });
-
-  return () => {
-    if (socketRef.current) {
-      socketRef.current.off("peer-disconnected");
-      socketRef.current.off("connect");
-      socketRef.current.off("disconnect");
-      socketRef.current.disconnect();
-      socketRef.current = null;
+  const processPendingCandidates = async () => {
+    while (pendingIceCandidatesRef.current.length > 0) {
+      const candidate = pendingIceCandidatesRef.current.shift();
+      await peerConnectionRef.current.addIceCandidate(candidate);
     }
   };
-}, []); //added by Binit 
 
-
-  // ✅ Start media + join matchmaking
-  useEffect(() => {
-    const init = async () => {
-      try {
-        setStatus("Starting camera...");
-        await startLocalStream();
-
-        setStatus("Finding peer...");
-        socketRef.current.emit("join-room");
-      } catch (err) {
-        console.error("❌ Camera/Mic error:", err);
-        setStatus("Camera/Mic Permission Denied ❌");
-      }
-    };
-
-    init();
-
-    return () => {
-      // ✅ Stop local stream
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
-
-      // ✅ Close peer connection
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-        peerConnectionRef.current = null;
-      }
-    };
-  }, []);
-
-  // ✅ WebRTC signaling handlers
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    const socket = socketRef.current;
-
-    const onWaiting = () => {
-      setStatus("Waiting for peer...");
-    };
-
-    const onMatched = async ({ peerId }) => {
-      setPeerId(peerId);
-      setStatus("Peer matched ✅");
-
-      peerConnectionRef.current = createPeerConnection(peerId);
-
-      localStreamRef.current.getTracks().forEach((track) => {
-        peerConnectionRef.current.addTrack(track, localStreamRef.current);
-      });
-
-      // ✅ FIX: Decide initiator safely
-      const myId = socket.id || mySocketId;
-
-      if (!myId) {
-        console.log("⚠️ mySocketId not ready yet. Waiting...");
-        setStatus("Waiting for socket id...");
-        return;
-      }
-
-      // ✅ FIX: prevent glare (only initiator creates offer)
-      const amIInitiator = myId < peerId;
-
-      if (amIInitiator) {
-        setStatus("Creating offer...");
-
-        const offer = await peerConnectionRef.current.createOffer();
-        await peerConnectionRef.current.setLocalDescription(offer);
-
-        socket.emit("offer", { to: peerId, offer });
-      } else {
-        setStatus("Waiting for offer...");
-      }
-    };
-
-    const onOffer = async ({ from, offer }) => {
-      try {
-        setPeerId(from);
-        setStatus("Receiving offer...");
-
-        peerConnectionRef.current = createPeerConnection(from);
-
-        localStreamRef.current.getTracks().forEach((track) => {
-          peerConnectionRef.current.addTrack(track, localStreamRef.current);
-        });
-
-        await peerConnectionRef.current.setRemoteDescription(offer);
-
-        // ✅ Apply queued ICE candidates
-        for (const c of pendingIceCandidatesRef.current) {
-          await peerConnectionRef.current.addIceCandidate(c);
-        }
-        pendingIceCandidatesRef.current = [];
-
-        const answer = await peerConnectionRef.current.createAnswer();
-        await peerConnectionRef.current.setLocalDescription(answer);
-
-        socket.emit("answer", { to: from, answer });
-
-        setStatus("Connected ✅");
-      } catch (err) {
-        console.error("❌ Error handling offer:", err);
-        setStatus("Offer failed ❌");
-      }
-    };
-
-    const onAnswer = async ({ answer }) => {
-      try {
-        await peerConnectionRef.current.setRemoteDescription(answer);
-
-        // ✅ Apply queued ICE candidates
-        for (const c of pendingIceCandidatesRef.current) {
-          await peerConnectionRef.current.addIceCandidate(c);
-        }
-        pendingIceCandidatesRef.current = [];
-
-        setStatus("Connected ✅");
-      } catch (err) {
-        console.error("❌ Error handling answer:", err);
-        setStatus("Answer failed ❌");
-      }
-    };
-
-    const onIceCandidate = async ({ candidate }) => {
-      try {
-        if (!peerConnectionRef.current) return;
-
-        // ✅ Buffer if remoteDescription not set
-        if (!peerConnectionRef.current.remoteDescription) {
-          pendingIceCandidatesRef.current.push(candidate);
-          return;
-        }
-
-        await peerConnectionRef.current.addIceCandidate(candidate);
-      } catch (err) {
-        console.log("ICE candidate error:", err);
-      }
-    };
-
-    socket.on("waiting", onWaiting);
-    socket.on("matched", onMatched);
-    socket.on("offer", onOffer);
-    socket.on("answer", onAnswer);
-    socket.on("ice-candidate", onIceCandidate);
-
-    return () => {
-      socket.off("waiting", onWaiting);
-      socket.off("matched", onMatched);
-      socket.off("offer", onOffer);
-      socket.off("answer", onAnswer);
-      socket.off("ice-candidate", onIceCandidate);
-    };
-  }, [mySocketId]);
-
-  // ✅ Mic toggle
+  // 3. Button Actions
   const toggleMic = () => {
-    const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-    if (!audioTrack) return;
-
-    audioTrack.enabled = !audioTrack.enabled;
-    setIsMicOn(audioTrack.enabled);
-  };
-
-  // ✅ Video toggle
-  const toggleVideo = () => {
-    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-    if (!videoTrack) return;
-
-    videoTrack.enabled = !videoTrack.enabled;
-    setIsVideoOn(videoTrack.enabled);
-  };
-
-  // ✅ End call properly
-  const handleLeave = () => {
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMicOn(audioTrack.enabled);
+      }
+    }
+  };
+
+  const toggleVideo = () => {
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoOn(videoTrack.enabled);
+      }
+    }
+  };
+
+  const handleLeaveButton = () => {
+    cleanupConnection();
+    if (onLeave) onLeave();
+  };
+
+  const cleanupConnection = () => {
+    // A. Close Media
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
     }
 
+    // B. Close WebRTC
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
 
+    // C. Disconnect Socket (Crucial for notifying partner)
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+
     setPeerId(null);
     setStatus("Disconnected");
-
-    if (onLeave) onLeave();
   };
 
   return (
@@ -338,8 +250,8 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       <header className="absolute top-0 left-0 right-0 h-20 px-8 flex items-center justify-between z-50">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 bg-slate-900/50 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full">
-            <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-slate-200">LIVE</span>
+            <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${peerId ? "bg-green-500" : "bg-red-500"}`}></div>
+            <span className="text-sm font-medium text-slate-200">{peerId ? "CONNECTED" : "WAITING"}</span>
             <span className="text-slate-600">|</span>
             <Clock size={14} className="text-slate-400" />
             <span className="text-sm font-mono text-slate-300">00:12:45</span>
@@ -361,41 +273,41 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       <div className="flex h-full pt-24 pb-6 px-6 gap-6">
         {/* VIDEO AREA */}
         <div className="flex-1 relative bg-slate-900/30 border border-white/10 rounded-3xl overflow-hidden flex items-center justify-center">
+          
+          {/* Remote Video */}
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
             className="absolute inset-0 w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-black/35"></div>
+          
+          {!peerId && (
+             <div className="absolute inset-0 bg-black/35 flex flex-col items-center justify-center z-10">
+                <div className="w-32 h-32 bg-slate-800 rounded-full mb-6 flex items-center justify-center animate-pulse">
+                    <span className="text-4xl">🔎</span>
+                </div>
+                <h2 className="text-2xl font-bold">Looking for a Peer...</h2>
+             </div>
+          )}
 
-          <div className="text-center z-10">
-            <div className="w-32 h-32 bg-purple-600 rounded-full mx-auto mb-6 flex items-center justify-center text-4xl font-bold text-white">
-              {partnerName ? partnerName[0].toUpperCase() : "?"}
-            </div>
-            <h2 className="text-2xl font-bold">{partnerName}</h2>
-            <p className="text-slate-400">
-              {peerId ? "Connected ✅" : "Waiting for peer..."}
-            </p>
-          </div>
-
-          {/* Local video */}
-          <div className="absolute top-6 right-6 w-48 h-36 bg-black rounded-2xl border border-white/10 overflow-hidden">
+          {/* Local Video */}
+          <div className="absolute top-6 right-6 w-48 h-36 bg-black rounded-2xl border border-white/10 overflow-hidden shadow-2xl z-20">
             <video
               ref={localVideoRef}
               autoPlay
               muted
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transform scale-x-[-1]" // Mirror effect
             />
           </div>
 
           {/* Controls */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-slate-950/80 border border-white/10 p-3 rounded-2xl">
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-slate-950/80 border border-white/10 p-3 rounded-2xl z-30">
             <button
               onClick={toggleMic}
-              className={`p-4 rounded-xl ${
-                isMicOn ? "bg-slate-800" : "bg-red-500/20 text-red-500"
+              className={`p-4 rounded-xl transition-all ${
+                isMicOn ? "bg-slate-800 hover:bg-slate-700" : "bg-red-500/20 text-red-500 border border-red-500/50"
               }`}
             >
               {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
@@ -403,16 +315,16 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
 
             <button
               onClick={toggleVideo}
-              className={`p-4 rounded-xl ${
-                isVideoOn ? "bg-slate-800" : "bg-red-500/20 text-red-500"
+              className={`p-4 rounded-xl transition-all ${
+                isVideoOn ? "bg-slate-800 hover:bg-slate-700" : "bg-red-500/20 text-red-500 border border-red-500/50"
               }`}
             >
               {isVideoOn ? <Video size={24} /> : <VideoOff size={24} />}
             </button>
 
             <button
-              onClick={handleLeave}
-              className="px-8 py-4 rounded-xl bg-red-600 text-white font-bold flex items-center gap-2"
+              onClick={handleLeaveButton}
+              className="px-8 py-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold flex items-center gap-2 transition-all"
             >
               <PhoneOff size={20} />
               End
@@ -424,7 +336,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
         <div className="w-96 bg-slate-900/30 border border-white/10 rounded-3xl overflow-hidden flex flex-col">
           <div className="p-6 border-b border-white/10">
             <h2 className="text-lg font-bold">Interview Guide</h2>
-            <p className="text-slate-400 text-xs">Role: Interviewer</p>
+            <p className="text-slate-400 text-xs">Questions to ask</p>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -432,13 +344,16 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
               questions.map((q, idx) => (
                 <div
                   key={idx}
-                  className="p-4 rounded-2xl bg-slate-950/40 border border-white/5"
+                  className="p-4 rounded-2xl bg-slate-950/40 border border-white/5 hover:border-white/10 transition"
                 >
-                  <p className="text-slate-300 text-sm">{q}</p>
+                  <p className="text-slate-300 text-sm leading-relaxed">{q}</p>
                 </div>
               ))
             ) : (
-              <p className="text-slate-500 p-4">No questions loaded.</p>
+              <div className="text-center text-slate-500 mt-10">
+                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                <p>No questions loaded.</p>
+              </div>
             )}
           </div>
         </div>

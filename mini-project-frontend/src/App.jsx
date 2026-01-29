@@ -6,6 +6,11 @@ import LoginScreen from './components/LoginScreen';  // The Landing/Login Page
 import Dashboard from './components/Dashboard';      // The Static HUD Dashboard
 import InterviewRoom from './components/InterviewRoom'; // The Interview Room
 
+
+
+import PrivateRoute from './components/PrivateRoute'; // comment this out if you dont want the jwt auth part for now
+
+
 function App() {
   // We keep this state to store the user's info after they log in
   const [userData, setUserData] = useState(null);
@@ -23,8 +28,16 @@ function App() {
         {/* ROUTE 1: The Landing Page (Login) */}
         <Route path="/" element={<LoginScreen onJoin={handleLogin} />} />
 
+
+        {/* comment out the below single route path in case you want the previous accessibility */}
         {/* ROUTE 2: The User Dashboard (Static Page) */}
-        <Route path="/dashboard" element={<Dashboard />} />
+        {/* <Route path="/dashboard" element={<Dashboard />} />  */}
+
+        <Route element={<PrivateRoute />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          
+        </Route>
+
 
         {/* ROUTE 3: The Interview Room */}
         <Route 

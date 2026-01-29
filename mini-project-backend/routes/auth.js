@@ -1,61 +1,88 @@
 const router = require('express').Router();
-//router handles /api/auth/* routes - so no need to mention /api/auth here
 const User = require('../models/User');
-//import User model 
-// moongoose schema is in models/User.js - mapped to MongoDB collection 'users'
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-//POST /api/auth/register 
+const JWT_SECRET = "mini_project_secret_key_123"; // In prod, use .env
 
-router.post('/register', async (req,res)=>{ //define route handler,mounted later as /api/auth/register
-    try{
-        const newUser = new User(req.body); //create new User document from request body
-        const user = await newUser.save(); //save to DB - returns saved document
-        res.status(200).json(user); //return saved user with 200 OK status
-    }catch(err){
-        res.status(500).json(err); //on error return 500 status with error object
+// 1. REGISTER ROUTE
+router.post('/register', async (req, res) => {
+  try {
+    // ✅ STEP 1: Define variables FIRST
+    const { username, email, password } = req.body;
+
+    // Validation
+    if (!email || !username || !password) {
+      return res.status(400).json({ message: "All fields are required" });
     }
+
+    // ✅ STEP 2: Now we can use 'email' safely
+    const existingUser = await User.findOne({ email: email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Hash Password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create User
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      role: 'candidate'
+    });
+
+    const savedUser = await newUser.save();
+
+    // Create Token
+    const token = jwt.sign({ id: savedUser._id }, JWT_SECRET, { expiresIn: "1d" });
+
+    console.log(`✅ Registered: ${savedUser.username}`);
+    res.status(201).json({ 
+        token, 
+        user: { id: savedUser._id, username: savedUser.username, email: savedUser.email } 
+    });
+
+  } catch (err) {
+    console.error("Register Error:", err);
+    res.status(500).json({ message: "Server Error", error: err.message });
+  }
 });
 
-// POST /api/auth/login 
-//declare route handler for login 
-//decribes login endpoint
+// 2. LOGIN ROUTE
+router.post('/login', async (req, res) => {
+  try {
+    const { identifier, password } = req.body;
 
-router.post('/login',async(req,res) => {
-    try{
-        const user = await User.findOne({email: req.body.email}) ; //searches for user by email ;the very first email in the request body , returns user document if found and null if not found
-        if(!user) return res.status(404).json("User not found"); //if user not found return 404 status with message
-
-        //check password - in real app, use hashed passwords and compare with bcrypt
-        if(user.password !== req.body.password){
-            return res.status(400).json("Invalid password"); //if password doesn't match return 400 status
-        }
-        res.status(200).json(user); //if login successful return user document with 200 OK status
-    }catch(err){
-        res.status(500).json(err); //on error return 500 status with error object
+    if (!identifier || !password) {
+      return res.status(400).json({ message: "Please provide credentials" });
     }
-});
-// end of login route handler
 
-//export the router to be used in main app
+    // Search by Email OR Username
+    const user = await User.findOne({
+      $or: [{ email: identifier }, { username: identifier }]
+    });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Verify Password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+
+    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1d" });
+
+    console.log(`✅ Logged In: ${user.username}`);
+    res.json({ 
+        token, 
+        user: { id: user._id, username: user.username, email: user.email } 
+    });
+
+  } catch (err) {
+    console.error("Login Error:", err);
+    res.status(500).json({ message: "Server Error", error: err.message });
+  }
+});
+
 module.exports = router;
-
-
-
-// Structural problems (non-optional to understand)
-// Passwords are stored and compared in plain text
-// -Must be hashed (bcrypt)
-// User object is returned directly
-// -Leaks password, internal fields
-// No validation
-// -Any junk data can be saved
-// No authentication token
-// -Login has no session or JWT
-
-// Mental model
-
-// This file defines authentication routes
-// Express receives request → router matches path → handler runs
-// MongoDB is accessed via Mongoose
-// Response is manually constructed using res
-
-// This code works mechanically. It is not safe.
