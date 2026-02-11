@@ -102,6 +102,7 @@ const LoginScreen = ({ onJoin }) => {
           method: "POST",
           headers : {"Content-Type" : "application/json"},
           body: JSON.stringify(payload),
+          credentials: "include"
         });
 
         const data = await response.json(); // B. Handle Server Response 
@@ -111,7 +112,7 @@ const LoginScreen = ({ onJoin }) => {
 
           //C . save user session 
           // 1. Save Token specifically for PrivateRoute
-          localStorage.setItem("token", data.token);
+          localStorage.setItem("token", data.accessToken);
           
           // 2. Save User Details specifically for Dashboard/Profile
           localStorage.setItem("user", JSON.stringify(data.user)); 

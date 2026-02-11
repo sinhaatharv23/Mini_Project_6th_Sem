@@ -4,6 +4,10 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+
+const jwt = require('jsonwebtoken'); // verify access token
+const cookieParser = require('cookie-parser'); // needed for refresh token based continous login - AMAN
+
 const connectDB = require('./db');
 const authRoute = require('./routes/auth');
 
@@ -14,8 +18,12 @@ const server = http.createServer(app);
 connectDB();
 
 // 2. Middleware
-app.use(cors());
+app.use(cors({
+   origin: "http://localhost:5173",   // necessary while using refresh tokens
+   credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // 3. Auth Routes
 app.use('/api/auth', authRoute);
@@ -27,7 +35,20 @@ const io = new Server(server, {
         methods: ["GET", "POST"],
     },
 });
-
+// SOCKET SESSION CONTROL - AMAN
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;  // get token from client
+    if (!token) {
+        return next(new Error("Authentication failed: No token"));
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET); // token valid or not
+        socket.userId = decoded.id; // attach logged-in user id
+        next();
+    } catch (err) {
+        return next(new Error("Authentication failed: Invalid or expired token"));
+    }
+});
 // --- VIDEO CALL LOGIC ---
 
 let waitingUser = null; 
@@ -68,6 +89,8 @@ io.on("connection", (socket) => {
 
     // 2. Store it in the socket object for later use
     socket.data.username = username;
+
+    socket.data.userId = socket.userId; // stores logged in user-id - AMAN
 
     socket.on("join-room", () => {
         if (waitingUser) {

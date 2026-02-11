@@ -13,6 +13,11 @@ import {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+  
+  
+  // Get user from storage
+  const user = JSON.parse(localStorage.getItem("user"));
+
 
   // 1. Scroll Listener (Matches LoginScreen logic)
   useEffect(() => {
@@ -22,6 +27,21 @@ const Dashboard = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Logout handler
+  const handleLogout = async () => {
+    try {
+      await fetch("http://localhost:5000/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      localStorage.clear();
+      navigate("/"); // back to login
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
 
   return (
     // 'min-h-screen' ensures full height. 
@@ -77,24 +97,62 @@ const Dashboard = () => {
             <Settings size={20} />
         </button>
 
+        
+     
+        {/* Profile Menu */}
+       
+       <div className="relative group">
+
         {/* Profile Button */}
-        <button className={`flex items-center transition-all duration-700 group backdrop-blur-sm
-            ${scrolled
-              ? 'flex-col p-2 rounded-full bg-slate-900/10 border border-white/10 space-y-0 h-auto w-auto' 
-              : 'space-x-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10' 
-            }
-        `}>
-            <div className="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md z-10">
-                JD
-            </div>
-            
-            <span className={`text-sm font-medium text-slate-200 group-hover:text-white transition-all duration-500
-                ${scrolled ? 'h-0 w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}
-            `}>
-              John Doe
-            </span>
-        </button>
+      <div
+      className={`flex items-center transition-all duration-700 backdrop-blur-sm cursor-pointer
+      ${scrolled
+        ? 'flex-col p-2 rounded-full bg-slate-900/10 border border-white/10'
+        : 'space-x-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10'
+      }
+    `}
+  >
+     <div className="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md z-10">
+      JD
+    </div>
+
+    <span
+      className={`text-sm font-medium text-slate-200 transition-all duration-500
+        ${scrolled ? 'h-0 w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}
+      `}
+    >
+      John Doe
+    </span>
+  </div>
+
+
+  {/* Logout Dropdown (MUST be inside group) */}
+  <div
+    className="
+      absolute right-0 mt-2 w-32
+      bg-slate-900 border border-slate-700
+      rounded-xl shadow-lg z-50
+
+      opacity-0 invisible
+      group-hover:opacity-100
+      group-hover:visible
+
+      translate-y-2
+      group-hover:translate-y-0
+
+      transition-all duration-200
+    "
+  >
+    <button
+      onClick={handleLogout}
+      className="w-full text-left px-4 py-2 text-red-400 hover:bg-slate-800 rounded-xl"
+    >
+      Logout
+    </button>
       </div>
+     </div>
+    </div>
+      
 
 
       {/* --- MAIN CONTENT --- */}

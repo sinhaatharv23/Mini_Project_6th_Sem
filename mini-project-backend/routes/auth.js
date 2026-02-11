@@ -3,7 +3,9 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = "mini_project_secret_key_123"; // In prod, use .env
+// 🔐 Secrets from .env (NOT hardcoded)
+const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
 // 1. REGISTER ROUTE
 router.post('/register', async (req, res) => {
@@ -36,12 +38,16 @@ router.post('/register', async (req, res) => {
 
     const savedUser = await newUser.save();
 
-    // Create Token
-    const token = jwt.sign({ id: savedUser._id }, JWT_SECRET, { expiresIn: "1d" });
+    // 🔑 Access token (short-lived) Edited
+    const accessToken = jwt.sign(
+      { id: savedUser._id },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
 
     console.log(`✅ Registered: ${savedUser.username}`);
     res.status(201).json({ 
-        token, 
+        accessToken, 
         user: { id: savedUser._id, username: savedUser.username, email: savedUser.email } 
     });
 
@@ -71,11 +77,35 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1d" });
+     // 🔑 Access token (short)
+    const accessToken = jwt.sign(
+      { id: user._id },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    //  Refresh token (long)
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      REFRESH_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    // Store refresh token in DB
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    // Send refresh token as HTTP-only cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false
+    });
+
 
     console.log(`✅ Logged In: ${user.username}`);
     res.json({ 
-        token, 
+        accessToken, 
         user: { id: user._id, username: user.username, email: user.email } 
     });
 
@@ -83,6 +113,48 @@ router.post('/login', async (req, res) => {
     console.error("Login Error:", err);
     res.status(500).json({ message: "Server Error", error: err.message });
   }
+});
+
+// 3. REFRESH TOKEN ROUTE - AMAN
+router.post('/refresh', async (req, res) => {
+  const token = req.cookies.refreshToken;
+
+  if (!token) return res.sendStatus(401);
+
+  try {
+    const decoded = jwt.verify(token, REFRESH_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user || user.refreshToken !== token) {
+      return res.sendStatus(403);
+    }
+
+    const newAccessToken = jwt.sign(
+      { id: user._id },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.json({ accessToken: newAccessToken });
+
+  } catch (err) {
+    res.sendStatus(403);
+  }
+});
+// 4. LOGOUT ROUTE - AMAN
+router.post('/logout', async (req, res) => {
+  const token = req.cookies.refreshToken;
+
+  if (token) {
+    const user = await User.findOne({ refreshToken: token });
+    if (user) {
+      user.refreshToken = null;
+      await user.save();
+    }
+  }
+
+  res.clearCookie("refreshToken");
+  res.sendStatus(200);
 });
 
 module.exports = router;
