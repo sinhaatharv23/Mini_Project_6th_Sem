@@ -2,7 +2,7 @@ const router = require('express').Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
+const admin = require('../firebaseAdmin'); // For Google Sign-In (if needed)
 // 🔐 Secrets from .env (NOT hardcoded)
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
@@ -114,7 +114,53 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: "Server Error", error: err.message });
   }
 });
+// ================= GOOGLE LOGIN ROUTE - Atharva =================
+router.post('/google',async(req,res)=>{
+  try{
+    const{token} = req.body;
 
+    if(!token){
+      return res.status(400).json({message:"Token missing"});
+    }
+    // 1️⃣ Verify Firebase token
+    const decoded = await admin.auth().verifyIdToken(token);
+
+    const email = decoded.email;
+    const name = decoded.name;
+    const photo = decoded.picture;
+    // 2️⃣ Check if user exists in DB
+    let user = await User.findOne({email});
+
+    // 3️⃣ If not, create new user
+    if(!user){
+      user = new User({
+        username:name,
+        email,
+        password: "GOOGLE_AUTH", // Placeholder since we won't use it
+        role: 'candidate',
+        photo: photo // Store profile picture URL if needed
+      });
+      await user.save();
+      console.log("Google user created:",email);
+    }else{
+      console.log("Google user logged in:",email);
+    }
+    // 4️⃣ Create JWT token for our app
+    const accessToken = jwt.sign(
+      { id: user._id },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.json({
+      accessToken,
+      user: { id: user._id, username: user.username, email: user.email, photo: user.photo }
+    });
+  }catch(err){
+    console.log("Google Auth Error:",err);
+    res.status(401).json({message:"Invalid Google token"});
+  }
+});
 // 3. REFRESH TOKEN ROUTE - AMAN
 router.post('/refresh', async (req, res) => {
   const token = req.cookies.refreshToken;

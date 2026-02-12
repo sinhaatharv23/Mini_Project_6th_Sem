@@ -16,7 +16,23 @@ const Dashboard = () => {
   
   
   // Get user from storage
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user")||"null");
+
+
+ // ✅ SAFETY CHECK (Protect Dashboard)
+  useEffect(() => {
+    if (!user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
+
+// ✅ BETTER INITIALS LOGIC (Pro Look)
+  const initials = user?.username
+    ?.split(" ")
+    .map(word => word[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
 
   // 1. Scroll Listener (Matches LoginScreen logic)
@@ -112,8 +128,12 @@ const Dashboard = () => {
       }
     `}
   >
-     <div className="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md z-10">
-      JD
+     <div className='w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white shadow-md z-10 bg-gradient-to-r from-indigo-500 to-purple-500'>
+      {user?.photo?(
+        <img src={user.photo} alt="Profile" className='w-full h-full object-cover' />
+      ):(
+        initials
+      )}
     </div>
 
     <span
@@ -121,7 +141,7 @@ const Dashboard = () => {
         ${scrolled ? 'h-0 w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}
       `}
     >
-      John Doe
+      {user?.username}
     </span>
   </div>
 
@@ -162,7 +182,7 @@ const Dashboard = () => {
         {/* 1. WELCOME SECTION (Compact) */}
         <div className="flex-none mb-8">
             <h1 className="text-4xl font-light text-white mb-2">
-                Hello, <span className="font-semibold">John</span>.
+                Hello, <span className="font-semibold">{user?.username}</span>.
             </h1>
             <p className="text-slate-500">Ready to prepare for your next big opportunity?</p>
         </div>

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { signInWithPopup } from 'firebase/auth';
+import {auth,provider} from '../firebase'; // Importing auth and provider from firebase.js
 import { useNavigate } from 'react-router-dom'; // Fixed import and added hook
 // import { Video, Code2, Rocket, User, Settings } from 'lucide-react';
 import { Video, Code2, Rocket, User, Settings, Mail, Lock } from 'lucide-react'; //added by Binit
@@ -135,7 +137,61 @@ const LoginScreen = ({ onJoin }) => {
         }
     
   };
+  // ================= FIREBASE GOOGLE LOGIN =================
+  /*
+  This function runs when the user clicks "Sign in with Google"
 
+  What happens step-by-step:
+  1) Opens Google account selection popup
+  2) User chooses their Gmail
+  3) Firebase authenticates the user
+  4) We get user's basic details (name, email, photo)
+  5) Save info locally (optional)
+  6) Redirect user to dashboard
+*/
+const handleGoogleLogin = async () => {
+  try {
+    // 1️⃣ Open Google popup
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // 2️⃣ Get Firebase ID token
+    const token = await user.getIdToken();
+
+    // 3️⃣ Send token to backend
+    const response = await fetch("http://localhost:5000/api/auth/google", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ token })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // 4️⃣ Save JWT like normal login
+      localStorage.setItem("token", data.accessToken);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // 5️⃣ Redirect
+      navigate('/dashboard');
+    } else {
+      setError(data.message);
+    }
+
+  } catch (error) {
+    console.error("Google Login Error:", error);
+    setError("Google sign-in failed");
+  }
+};
+  // =================Prevent logged-in users from seeing login page=================
+  useEffect(()=>{
+    const token = localStorage.getItem("token");
+    if(token){
+      navigate('/dashboard');
+    }
+  },[]);
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-blue-900 to-slate-950 text-white flex flex-col font-sfpro relative">
       
@@ -353,11 +409,17 @@ const LoginScreen = ({ onJoin }) => {
                           </button>
                       </div>
 
-                      {/* 4. GOOGLE LOGIN */}
+                                {/*4. Google Sign-In Button
+                                    When user clicks this:
+                                    1) Firebase opens Google account popup
+                                    2) User selects Gmail
+                                    3) Firebase authenticates the user
+                                    4) We receive user details and redirect to dashboard
+                                */}
                       <button 
                           type="button"
                           className="w-full bg-white text-slate-900 font-bold py-3 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-100 transition"
-                          onClick={() => alert("Google Login Logic")}
+                          onClick={handleGoogleLogin} 
                       >
                           <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5" alt="Google" />
                           Sign in with Google

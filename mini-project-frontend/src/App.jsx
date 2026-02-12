@@ -55,8 +55,8 @@ function App() {
 
       </Route>
 
-
-        {/* ROUTE 3: The Interview Room */}
+      {/* Was written twice thats why removed */}
+        {/* ROUTE 3: The Interview Room
         <Route 
           path="/room" 
           element={
@@ -72,7 +72,7 @@ function App() {
               onLeave={() => window.location.href = '/dashboard'} 
             />
           } 
-        />
+        /> */}
 
       </Routes>
     </Router>

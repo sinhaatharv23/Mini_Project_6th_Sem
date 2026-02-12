@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
     email:    {type: String, required:true ,unique: true},
     password: {type: String, required:true }, //hashing not included for simplicity
     role:    {type: String, default : 'user' },
+    photo: {type: String, default: ""},
     refreshToken: {type: String, default: null} // used in session control, helps to stay logged in added by Aman
     },{timestamps: true}
   // adds createdAt and updatedAt fields 
