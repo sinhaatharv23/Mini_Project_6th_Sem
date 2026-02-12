@@ -33,10 +33,27 @@ function App() {
         {/* ROUTE 2: The User Dashboard (Static Page) */}
         {/* <Route path="/dashboard" element={<Dashboard />} />  */}
 
-        <Route element={<PrivateRoute />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          
-        </Route>
+        <Route element={<PrivateRoute />}>      // Protects room too 
+
+        <Route path="/dashboard" element={<Dashboard />} />
+
+       <Route 
+       path="/room" 
+       element={
+       <InterviewRoom 
+        partnerName="Random Peer" 
+        questions={[
+          "Can you explain the difference between `let`, `const`, and `var`?",
+          "How does the React Virtual DOM work?",
+          "Explain the concept of 'Hoisting' in JavaScript.",
+          "What are React Hooks and why do we use them?"
+        ]}
+        onLeave={() => window.location.href = '/dashboard'} 
+      />
+      } 
+      />
+
+      </Route>
 
 
         {/* ROUTE 3: The Interview Room */}
