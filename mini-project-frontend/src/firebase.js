@@ -17,7 +17,7 @@ NOTE:
     - It's safe to include this in our frontend code because it only allows access to Firebase services that we have configured (like Authentication). It does not give full access to our Firebase project or database.
 */
 const firebaseConfig = {
-  apiKey: "AIzaSyBzCrZUXZ4QIFTGhlJPE7rCoK4fTbpDXRs", //Unique API key for this Firebase Project
+  apiKey: "AIzaSyA3PGXUy0a_QH2axqrtFXV-T_NcEdxWoTk", //Unique API key for this Firebase Project
   authDomain: "peerinterview-fe3d3.firebaseapp.com", // Domain used for authentication
   projectId: "peerinterview-fe3d3", //Firebase project ID
   storageBucket: "peerinterview-fe3d3.firebasestorage.app", // Storage service bucket
