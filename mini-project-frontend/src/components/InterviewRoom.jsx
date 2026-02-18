@@ -85,8 +85,11 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   // 2. Socket Logic
   const connectSocket = () => {
     socketRef.current = io("http://localhost:5000" ,{
-      query : {
-        username: currentUser.username || "Annoymous"
+      auth: {
+        token: localStorage.getItem("token") // Send JWT token for authentication
+      },
+      query: {
+        username: currentUser.username || "Anonymous"
       }
     }); // Ensure this matches your Backend PORT
 

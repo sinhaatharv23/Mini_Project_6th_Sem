@@ -38,14 +38,18 @@ const io = new Server(server, {
 // SOCKET SESSION CONTROL - AMAN
 io.use((socket, next) => {
     const token = socket.handshake.auth?.token;  // get token from client
+    console.log("📩 Incoming socket token:", token);   // ADD THIS
     if (!token) {
+        console.log("❌ No token received");
         return next(new Error("Authentication failed: No token"));
     }
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET); // token valid or not
         socket.userId = decoded.id; // attach logged-in user id
+        console.log("✅ Token valid for user:", decoded.id);  // ADD THIS
         next();
     } catch (err) {
+        console.log("❌ Invalid token");
         return next(new Error("Authentication failed: Invalid or expired token"));
     }
 });
@@ -136,7 +140,7 @@ io.on("connection", (socket) => {
         console.log("User Disconnected:", socket.id);
 
         // 1. If they were waiting, remove them from the line
-        if (waitingUser === socket.id) {
+        if (waitingUser && waitingUser.id === socket.id) {
             waitingUser = null;
         }
 
