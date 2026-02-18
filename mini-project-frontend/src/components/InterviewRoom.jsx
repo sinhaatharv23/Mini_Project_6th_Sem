@@ -17,6 +17,9 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   const [status, setStatus] = useState("Connecting...");
   const [peerId, setPeerId] = useState(null); // Used to track if we are matched
 
+  const [seconds, setSeconds] = useState(0);   // timer state 
+  const [timerRunning, setTimerRunning] = useState(false);
+
   // Refs for persistent objects
   const socketRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -66,6 +69,18 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       cleanupConnection();
     };
   }, []);
+  // ✅ TIMER EFFECT (RUNS ONLY WHEN CONNECTED) 
+   useEffect(() => {
+   let interval = null;
+
+   if (timerRunning) {
+    interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+  }
+
+   return () => clearInterval(interval);
+   }, [timerRunning]);
 
   // 2. Socket Logic
   const connectSocket = () => {
@@ -91,6 +106,8 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       console.log("🤝 Matched with:", partnerName);
       setPeerId(remotePeerId);
       setStatus(`Connected to ${partnerName}`);
+      setSeconds(0);         // reset timer
+      setTimerRunning(true); // start timer
 
       // Initialize WebRTC Connection
       createPeerConnection(remotePeerId);
@@ -138,6 +155,8 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
 
     // 🔴 HANDLE PARTNER DISCONNECT
     socket.on("peer-disconnected", () => {
+      setTimerRunning(false);
+      setSeconds(0);
       alert("Partner has left the interview.");
       setStatus("Partner Disconnected");
       setPeerId(null);
@@ -242,6 +261,17 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
 
     setPeerId(null);
     setStatus("Disconnected");
+    setTimerRunning(false);
+    setSeconds(0);
+  };
+   const formatTime = (secs) => {
+  const hrs = Math.floor(secs / 3600);
+  const mins = Math.floor((secs % 3600) / 60);
+  const sec = secs % 60;
+
+  return `${hrs.toString().padStart(2, "0")}:${mins
+    .toString()
+    .padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -254,7 +284,9 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
             <span className="text-sm font-medium text-slate-200">{peerId ? "CONNECTED" : "WAITING"}</span>
             <span className="text-slate-600">|</span>
             <Clock size={14} className="text-slate-400" />
-            <span className="text-sm font-mono text-slate-300">00:12:45</span>
+            <span className="text-sm font-mono text-slate-300">
+            {peerId ? formatTime(seconds) : "00:00:00"}
+            </span>
             <span className="ml-3 text-xs text-slate-400">({status})</span>
           </div>
         </div>
