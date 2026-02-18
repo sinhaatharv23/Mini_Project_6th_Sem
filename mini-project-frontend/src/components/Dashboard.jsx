@@ -19,13 +19,6 @@ const Dashboard = () => {
   const user = JSON.parse(localStorage.getItem("user")||"null");
 
 
- // ✅ SAFETY CHECK (Protect Dashboard)
-  useEffect(() => {
-    if (!user) {
-      navigate("/");
-    }
-  }, [user, navigate]);
-
 // ✅ BETTER INITIALS LOGIC (Pro Look)
   const initials = user?.username
     ?.split(" ")

@@ -164,7 +164,8 @@ const handleGoogleLogin = async () => {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ token })
+      body: JSON.stringify({ token }),
+      credentials: "include" // Important to include cookies for refresh token
     });
 
     const data = await response.json();
@@ -186,12 +187,30 @@ const handleGoogleLogin = async () => {
   }
 };
   // =================Prevent logged-in users from seeing login page=================
-  useEffect(()=>{
-    const token = localStorage.getItem("token");
-    if(token){
-      navigate('/dashboard');
-    }
-  },[]);
+useEffect(() => {
+  const checkSession = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/refresh", {
+        method: "POST",
+        credentials: "include"
+      });
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      localStorage.setItem("token", data.accessToken);
+
+      // Only redirect if user exists
+      if (localStorage.getItem("user")) {
+        navigate("/dashboard");
+      }
+    } catch {}
+  };
+
+  checkSession();
+}, []);
+
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-blue-900 to-slate-950 text-white flex flex-col font-sfpro relative">
       

@@ -44,19 +44,43 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   useEffect(() => {
     // A. Start Local Media First
     const startMedia = async () => {
-      try {
-        setStatus("Starting camera...");
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        localStreamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-        // Only connect socket after media is ready
-        connectSocket(); 
-      } catch (err) {
+  try {
+    setStatus("Starting camera...");
+
+    // 🔐 Ensure token is fresh before socket connection
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/refresh", {
+        method: "POST",
+        credentials: "include"
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem("token", data.accessToken);
+      }
+    } catch {
+      // If refresh fails → session expired → go back to login
+      localStorage.clear();
+      window.location.href = "/";
+      return;
+    }
+
+    // 🎥 Start camera
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+
+    localStreamRef.current = stream;
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream;
+    }
+
+    // 🔌 Now connect socket with fresh token
+    connectSocket();
+
+  }  catch (err) {
         console.error("Camera Error:", err);
         setStatus("Camera Permission Denied ❌");
       }

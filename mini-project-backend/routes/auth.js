@@ -99,7 +99,8 @@ router.post('/login', async (req, res) => {
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
 
 
@@ -151,7 +152,22 @@ router.post('/google',async(req,res)=>{
       JWT_SECRET,
       { expiresIn: "15m" }
     );
-
+    // 🔁 Refresh token (1 day)  ← THIS WAS MISSING
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      REFRESH_SECRET,
+      { expiresIn: "1d" }
+    );
+    // Store refresh token in DB
+    user.refreshToken = refreshToken;
+    await user.save();
+    // Send refresh token as HTTP-only cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000 // 1 day
+    });
     res.json({
       accessToken,
       user: { id: user._id, username: user.username, email: user.email, photo: user.photo }
