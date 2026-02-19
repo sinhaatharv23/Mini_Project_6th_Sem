@@ -13,7 +13,7 @@ import PrivateRoute from './components/PrivateRoute'; // comment this out if you
 
 function App() {
   // We keep this state to store the user's info after they log in
-  const [userData, setUserData] = useState(null);
+  const [, setUserData] = useState(null);
 
   // This function gets called when the user hits "Login" in LoginScreen.jsx
   const handleLogin = (data) => {
@@ -32,8 +32,8 @@ function App() {
         {/* comment out the below single route path in case you want the previous accessibility */}
         {/* ROUTE 2: The User Dashboard (Static Page) */}
         {/* <Route path="/dashboard" element={<Dashboard />} />  */}
-
-        <Route element={<PrivateRoute />}>      // Protects room too 
+        {/* Protect dashboard and room routes */}
+        <Route element={<PrivateRoute />}>
 
         <Route path="/dashboard" element={<Dashboard />} />
 
@@ -42,12 +42,7 @@ function App() {
        element={
        <InterviewRoom 
         partnerName="Random Peer" 
-        questions={[
-          "Can you explain the difference between `let`, `const`, and `var`?",
-          "How does the React Virtual DOM work?",
-          "Explain the concept of 'Hoisting' in JavaScript.",
-          "What are React Hooks and why do we use them?"
-        ]}
+        questions={[]}
         onLeave={() => window.location.href = '/dashboard'} 
       />
       } 

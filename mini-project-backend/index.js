@@ -1,4 +1,3 @@
-//edited by : Binit 
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -14,16 +13,27 @@ const authRoute = require('./routes/auth');
 const app = express();
 const server = http.createServer(app);
 
+app.use(express.json());
+app.use(cookieParser());
+
+
+// Routes moved after Middleware
+
+
 // 1. Connect to MongoDB
 connectDB();
 
 // 2. Middleware
 app.use(cors({
-   origin: "http://localhost:5173",   // necessary while using refresh tokens
-   credentials: true
+    origin: "http://localhost:5173",   // necessary while using refresh tokens
+    credentials: true
 }));
-app.use(express.json());
-app.use(cookieParser());
+
+//Middleware setup for the question and resume 
+const resumeRoute = require('./routes/resume');
+const questionRoute = require('./routes/questions');
+app.use('/resume', resumeRoute);
+app.use('/questions', questionRoute);
 
 // 3. Auth Routes
 app.use('/api/auth', authRoute);
@@ -55,36 +65,10 @@ io.use((socket, next) => {
 });
 // --- VIDEO CALL LOGIC ---
 
-let waitingUser = null; 
+let waitingUser = null;
 const activeCalls = {}; // Stores pairs: { socketId: partnerSocketId }
 
 io.on("connection", (socket) => {
-    // console.log("User Connected:", socket.id);
-
-    // socket.on("join-room", () => {
-    //     if (waitingUser) {
-    //         // Match found!
-    //         const peer1 = waitingUser;
-    //         const peer2 = socket.id;
-
-    //         console.log(`Matched: ${peer1} <-> ${peer2}`);
-
-    //         // 1. Notify both users
-    //         io.to(peer1).emit("matched", { peerId: peer2 });
-    //         io.to(peer2).emit("matched", { peerId: peer1 });
-
-    //         // 2. Save the pair in memory so we know who to disconnect later
-    //         activeCalls[peer1] = peer2;
-    //         activeCalls[peer2] = peer1;
-
-    //         waitingUser = null;
-    //     } else {
-    //         // Wait for a partner
-    //         waitingUser = socket.id;
-    //         socket.emit("waiting");
-    //         console.log(`Waiting: ${socket.id}`);
-    //     }
-    // });
 
     //new changed code - Binit 
     // 1. Get Username from Frontend
@@ -96,32 +80,32 @@ io.on("connection", (socket) => {
 
     socket.data.userId = socket.userId; // stores logged in user-id - AMAN
 
-     //CHAT MESSAGE(Only between matched user without db storage) - Edited By Atharva
-        socket.on("chat-message",({message})=>{
-            if(!message?.trim()) return; // Ignore empty messages
-            const partnerId = activeCalls[socket.id];
-            if(partnerId){
-                io.to(partnerId).emit("chat-message",{
-                    from: socket.data.username, // Send sender's name
-                    message
-                 }
-                );
+    //CHAT MESSAGE(Only between matched user without db storage) - Edited By Atharva
+    socket.on("chat-message", ({ message }) => {
+        if (!message?.trim()) return; // Ignore empty messages
+        const partnerId = activeCalls[socket.id];
+        if (partnerId) {
+            io.to(partnerId).emit("chat-message", {
+                from: socket.data.username, // Send sender's name
+                message
             }
-        });
-        socket.on("typing",()=>{
-            const partnerId = activeCalls[socket.id];
-            if(partnerId){
-                socket.to(partnerId).emit("user-typing",{
-                    username:socket.data.username
-                });
-            }
-        });
-        socket.on("stop-typing",()=>{
-            const partnerId = activeCalls[socket.id];
-            if(partnerId){
-                socket.to(partnerId).emit("user-stop-typing");
-            }
-        });
+            );
+        }
+    });
+    socket.on("typing", () => {
+        const partnerId = activeCalls[socket.id];
+        if (partnerId) {
+            socket.to(partnerId).emit("user-typing", {
+                username: socket.data.username
+            });
+        }
+    });
+    socket.on("stop-typing", () => {
+        const partnerId = activeCalls[socket.id];
+        if (partnerId) {
+            socket.to(partnerId).emit("user-stop-typing");
+        }
+    });
     socket.on("join-room", () => {
         if (waitingUser) {
             // Match found!
@@ -175,10 +159,11 @@ io.on("connection", (socket) => {
         if (partnerId) {
             io.to(partnerId).emit("peer-disconnected"); // We will handle this in Frontend
             io.to(partnerId).emit("chat-ended"); // Notify partner that chat has ended
+
             // Clean up memory
-            if(activeCalls[socket.id]){
-            delete activeCalls[socket.id];
-            delete activeCalls[partnerId];
+            if (activeCalls[socket.id]) {
+                delete activeCalls[socket.id];
+                delete activeCalls[partnerId];
             }
         }
     });

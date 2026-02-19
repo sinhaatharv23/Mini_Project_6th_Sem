@@ -9,8 +9,8 @@ import {
   Layout,
   Clock,
   Settings,
+  MessageSquare,
 } from "lucide-react";
-import { MessageSquare } from "lucide-react";
 const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
@@ -37,21 +37,21 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   const currentUser = JSON.parse(localStorage.getItem("user")) || {};
 
   const sendMessage = () => {
-    if(!peerId) return; //🚫 prevent sending if not connected
-    if(!currentMessage.trim()) return; // Don't send empty messages
-    if(typingTimeoutRef.current){
+    if (!peerId) return; //🚫 prevent sending if not connected
+    if (!currentMessage.trim()) return; // Don't send empty messages
+    if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    socketRef.current.emit("stop-typing",{to:peerId});
+    socketRef.current.emit("stop-typing", { to: peerId });
     const messageData = {
       from: currentUser.username || "You",
       message: currentMessage
     };
     //Add to own chat instantly
-    setMessages((prev) => [...prev,messageData]);
+    setMessages((prev) => [...prev, messageData]);
 
     //Send to backend
-    socketRef.current.emit("chat-message",{
+    socketRef.current.emit("chat-message", {
       message: currentMessage
     });
     setCurrentMessage(""); // Clear input
@@ -68,43 +68,43 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   useEffect(() => {
     // A. Start Local Media First
     const startMedia = async () => {
-  try {
-    setStatus("Starting camera...");
+      try {
+        setStatus("Starting camera...");
 
-    // 🔐 Ensure token is fresh before socket connection
-    try {
-      const res = await fetch("http://localhost:5000/api/auth/refresh", {
-        method: "POST",
-        credentials: "include"
-      });
+        // 🔐 Ensure token is fresh before socket connection
+        try {
+          const res = await fetch("http://localhost:5000/api/auth/refresh", {
+            method: "POST",
+            credentials: "include"
+          });
 
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem("token", data.accessToken);
-      }
-    } catch {
-      // If refresh fails → session expired → go back to login
-      localStorage.clear();
-      window.location.href = "/";
-      return;
-    }
+          if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem("token", data.accessToken);
+          }
+        } catch {
+          // If refresh fails → session expired → go back to login
+          localStorage.clear();
+          window.location.href = "/";
+          return;
+        }
 
-    // 🎥 Start camera
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
+        // 🎥 Start camera
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
 
-    localStreamRef.current = stream;
+        localStreamRef.current = stream;
 
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-    }
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
 
-    // 🔌 Now connect socket with fresh token
-    connectSocket();
+        // 🔌 Now connect socket with fresh token
+        connectSocket();
 
-  }  catch (err) {
+      } catch (err) {
         console.error("Camera Error:", err);
         setStatus("Camera Permission Denied ❌");
       }
@@ -118,21 +118,21 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     };
   }, []);
   // ✅ TIMER EFFECT (RUNS ONLY WHEN CONNECTED) 
-   useEffect(() => {
-   let interval = null;
+  useEffect(() => {
+    let interval = null;
 
-   if (timerRunning) {
-    interval = setInterval(() => {
-      setSeconds((prev) => prev + 1);
-    }, 1000);
-  }
+    if (timerRunning) {
+      interval = setInterval(() => {
+        setSeconds((prev) => prev + 1);
+      }, 1000);
+    }
 
-   return () => clearInterval(interval);
-   }, [timerRunning]);
+    return () => clearInterval(interval);
+  }, [timerRunning]);
 
   // 2. Socket Logic
-  const connectSocket = () => {
-    socketRef.current = io("http://localhost:5000" ,{
+  function connectSocket() {
+    socketRef.current = io("http://localhost:5000", {
       auth: {
         token: localStorage.getItem("token") // Send JWT token for authentication
       },
@@ -152,13 +152,13 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     socket.on("waiting", () => {
       setStatus("Waiting for a partner...");
     });
-    socket.on("chat-message",(data)=>{
-      setMessages((prev)=>[...prev,data]);
+    socket.on("chat-message", (data) => {
+      setMessages((prev) => [...prev, data]);
     });
-    socket.on("chat-ended",()=>{
+    socket.on("chat-ended", () => {
       setMessages([]); // Clear chat messages when chat ends
     })
-    socket.on("matched", async ({ peerId: remotePeerId ,partnerName }) => {
+    socket.on("matched", async ({ peerId: remotePeerId, partnerName }) => {
       console.log("🤝 Matched with:", partnerName);
       setPeerId(remotePeerId);
       setStatus(`Connected to ${partnerName}`);
@@ -183,7 +183,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       if (!peerConnectionRef.current) createPeerConnection(from);
 
       await peerConnectionRef.current.setRemoteDescription(offer);
-      
+
       // Process any queued ICE candidates
       processPendingCandidates();
 
@@ -216,25 +216,25 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       alert("Partner has left the interview.");
       setStatus("Partner Disconnected");
       setPeerId(null);
-      
+
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
         peerConnectionRef.current = null;
       }
-      
+
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = null; // Clear remote video
       }
-      
+
       // Optional: Automatically search for new peer
       // socket.emit("join-room");
     });
 
-    socket.on("user-typing",({username})=>{
+    socket.on("user-typing", ({ username }) => {
       setTypingUser(username);
       setIsTyping(true);
     })
-    socket.on("user-stop-typing",()=>{
+    socket.on("user-stop-typing", () => {
       setIsTyping(false);
       setTypingUser("");
     })
@@ -306,7 +306,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     if (onLeave) onLeave();
   };
 
-  const cleanupConnection = () => {
+  function cleanupConnection() {
     // A. Close Media
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -323,7 +323,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       socketRef.current.disconnect();
       socketRef.current = null;
     }
-    if(typingTimeoutRef.current){
+    if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     setIsTyping(false);
@@ -332,14 +332,14 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     setTimerRunning(false);
     setSeconds(0);
   };
-   const formatTime = (secs) => {
-  const hrs = Math.floor(secs / 3600);
-  const mins = Math.floor((secs % 3600) / 60);
-  const sec = secs % 60;
+  const formatTime = (secs) => {
+    const hrs = Math.floor(secs / 3600);
+    const mins = Math.floor((secs % 3600) / 60);
+    const sec = secs % 60;
 
-  return `${hrs.toString().padStart(2, "0")}:${mins
-    .toString()
-    .padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+    return `${hrs.toString().padStart(2, "0")}:${mins
+      .toString()
+      .padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -353,7 +353,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
             <span className="text-slate-600">|</span>
             <Clock size={14} className="text-slate-400" />
             <span className="text-sm font-mono text-slate-300">
-            {peerId ? formatTime(seconds) : "00:00:00"}
+              {peerId ? formatTime(seconds) : "00:00:00"}
             </span>
             <span className="ml-3 text-xs text-slate-400">({status})</span>
           </div>
@@ -373,7 +373,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       <div className="flex h-full pt-24 pb-6 px-6 gap-6">
         {/* VIDEO AREA */}
         <div className="flex-1 relative bg-slate-900/30 border border-white/10 rounded-3xl overflow-hidden flex items-center justify-center">
-          
+
           {/* Remote Video */}
           <video
             ref={remoteVideoRef}
@@ -381,14 +381,14 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
             playsInline
             className="absolute inset-0 w-full h-full object-cover"
           />
-          
+
           {!peerId && (
-             <div className="absolute inset-0 bg-black/35 flex flex-col items-center justify-center z-10">
-                <div className="w-32 h-32 bg-slate-800 rounded-full mb-6 flex items-center justify-center animate-pulse">
-                    <span className="text-4xl">🔎</span>
-                </div>
-                <h2 className="text-2xl font-bold">Looking for a Peer...</h2>
-             </div>
+            <div className="absolute inset-0 bg-black/35 flex flex-col items-center justify-center z-10">
+              <div className="w-32 h-32 bg-slate-800 rounded-full mb-6 flex items-center justify-center animate-pulse">
+                <span className="text-4xl">🔎</span>
+              </div>
+              <h2 className="text-2xl font-bold">Looking for a Peer...</h2>
+            </div>
           )}
 
           {/* Local Video */}
@@ -406,18 +406,16 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-slate-950/80 border border-white/10 p-3 rounded-2xl z-30">
             <button
               onClick={toggleMic}
-              className={`p-4 rounded-xl transition-all ${
-                isMicOn ? "bg-slate-800 hover:bg-slate-700" : "bg-red-500/20 text-red-500 border border-red-500/50"
-              }`}
+              className={`p-4 rounded-xl transition-all ${isMicOn ? "bg-slate-800 hover:bg-slate-700" : "bg-red-500/20 text-red-500 border border-red-500/50"
+                }`}
             >
               {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
             </button>
 
             <button
               onClick={toggleVideo}
-              className={`p-4 rounded-xl transition-all ${
-                isVideoOn ? "bg-slate-800 hover:bg-slate-700" : "bg-red-500/20 text-red-500 border border-red-500/50"
-              }`}
+              className={`p-4 rounded-xl transition-all ${isVideoOn ? "bg-slate-800 hover:bg-slate-700" : "bg-red-500/20 text-red-500 border border-red-500/50"
+                }`}
             >
               {isVideoOn ? <Video size={24} /> : <VideoOff size={24} />}
             </button>
@@ -434,70 +432,70 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
 
         {/* Chat SIDEBAR */}
         <div className="w-96 bg-slate-900/30 border border-white/10 rounded-3xl flex flex-col overflow-hidden">
-              {/* Header */}
-              <div className="p-6 border-b border-white/10">
-              <h2 className="text-lg font-bold">Live Chat</h2>
-              <p className="text-slate-400 text-xs">
-                Messages disappear when session ends
-              </p>
-              </div>
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {messages.length>0? (
-                  messages.map((msg,index)=>{
-                    const isOwnMessage = msg.from === currentUser.username;
-                    return (
-                      <div key={index} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-                          <div className={`px-4 py-2 rounded-2xl max-w-xs text-sm ${
-                            isOwnMessage ? "bg-indigo-600 text-white": "bg-slate-800 text-slate-200"
-                          }`}>
-                            <div className="text-xs opacity-70 mb-1">
-                              {isOwnMessage?"You":msg.from}
-                            </div>
-                            {msg.message}
-                          </div>
+          {/* Header */}
+          <div className="p-6 border-b border-white/10">
+            <h2 className="text-lg font-bold">Live Chat</h2>
+            <p className="text-slate-400 text-xs">
+              Messages disappear when session ends
+            </p>
+          </div>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {messages.length > 0 ? (
+              messages.map((msg, index) => {
+                const isOwnMessage = msg.from === currentUser.username;
+                return (
+                  <div key={index} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                    <div className={`px-4 py-2 rounded-2xl max-w-xs text-sm ${isOwnMessage ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-200"
+                      }`}>
+                      <div className="text-xs opacity-70 mb-1">
+                        {isOwnMessage ? "You" : msg.from}
                       </div>
-                    );
-                  }
-                )):(
-                  <div className="text-center text-slate-500 mt-10">
-                    <p>No messages yet.</p>
+                      {msg.message}
+                    </div>
                   </div>
-                )}
+                );
+              }
+              )) : (
+              <div className="text-center text-slate-500 mt-10">
+                <p>No messages yet.</p>
               </div>
-              {/* Typing Indicator */}
-              {isTyping && peerId && (
-                <div className="px-4 pb-2 text-sm text-slate-400 italic">
-                  {typingUser} is typing <span className="animate-pulse">...</span>
-                </div>
-              )}
-              {/* Input */}
-              <div className="p-4 border-t border-white/10 flex gap-2">
-                <input type="text" value={currentMessage} onChange={(e)=> {setCurrentMessage(e.target.value);
-                if(!peerId) return;
-                if(!socketRef.current) return; 
+            )}
+          </div>
+          {/* Typing Indicator */}
+          {isTyping && peerId && (
+            <div className="px-4 pb-2 text-sm text-slate-400 italic">
+              {typingUser} is typing <span className="animate-pulse">...</span>
+            </div>
+          )}
+          {/* Input */}
+          <div className="p-4 border-t border-white/10 flex gap-2">
+            <input type="text" value={currentMessage} onChange={(e) => {
+              setCurrentMessage(e.target.value);
+              if (!peerId) return;
+              if (!socketRef.current) return;
 
-                if(!e.target.value.trim()){
-                  socketRef.current.emit("stop-typing",{to:peerId});
-                  return;
-                }
-                //Emit typing event
-                socketRef.current.emit("typing",{
-                  to:peerId,
-                  username:currentUser.username
-                });
-                if(typingTimeoutRef.current){
-                  clearTimeout(typingTimeoutRef.current);
-                }
-                // After 1 second of inactivity → stop typing
-                typingTimeoutRef.current= setTimeout(()=>{
-                  socketRef.current.emit("stop-typing",{to:peerId});
-                },1000);
-                } }placeholder="Type a message..." className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500" onKeyDown={(e)=>{
-                  if(e.key==="Enter") sendMessage();
-                }}/>
-                <button onClick={sendMessage} disabled={!peerId} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-semibold transition">Send</button>
-              </div>
+              if (!e.target.value.trim()) {
+                socketRef.current.emit("stop-typing", { to: peerId });
+                return;
+              }
+              //Emit typing event
+              socketRef.current.emit("typing", {
+                to: peerId,
+                username: currentUser.username
+              });
+              if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+              }
+              // After 1 second of inactivity → stop typing
+              typingTimeoutRef.current = setTimeout(() => {
+                socketRef.current.emit("stop-typing", { to: peerId });
+              }, 1000);
+            }} placeholder="Type a message..." className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500" onKeyDown={(e) => {
+              if (e.key === "Enter") sendMessage();
+            }} />
+            <button onClick={sendMessage} disabled={!peerId} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-semibold transition">Send</button>
+          </div>
         </div>
       </div>
     </div>
@@ -505,3 +503,4 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
 };
 
 export default InterviewRoom;
+
