@@ -96,6 +96,32 @@ io.on("connection", (socket) => {
 
     socket.data.userId = socket.userId; // stores logged in user-id - AMAN
 
+     //CHAT MESSAGE(Only between matched user without db storage) - Edited By Atharva
+        socket.on("chat-message",({message})=>{
+            if(!message?.trim()) return; // Ignore empty messages
+            const partnerId = activeCalls[socket.id];
+            if(partnerId){
+                io.to(partnerId).emit("chat-message",{
+                    from: socket.data.username, // Send sender's name
+                    message
+                 }
+                );
+            }
+        });
+        socket.on("typing",()=>{
+            const partnerId = activeCalls[socket.id];
+            if(partnerId){
+                socket.to(partnerId).emit("user-typing",{
+                    username:socket.data.username
+                });
+            }
+        });
+        socket.on("stop-typing",()=>{
+            const partnerId = activeCalls[socket.id];
+            if(partnerId){
+                socket.to(partnerId).emit("user-stop-typing");
+            }
+        });
     socket.on("join-room", () => {
         if (waitingUser) {
             // Match found!
@@ -148,10 +174,12 @@ io.on("connection", (socket) => {
         const partnerId = activeCalls[socket.id];
         if (partnerId) {
             io.to(partnerId).emit("peer-disconnected"); // We will handle this in Frontend
-            
+            io.to(partnerId).emit("chat-ended"); // Notify partner that chat has ended
             // Clean up memory
+            if(activeCalls[socket.id]){
             delete activeCalls[socket.id];
             delete activeCalls[partnerId];
+            }
         }
     });
 });

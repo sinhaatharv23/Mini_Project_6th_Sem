@@ -10,13 +10,17 @@ import {
   Clock,
   Settings,
 } from "lucide-react";
-
+import { MessageSquare } from "lucide-react";
 const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [status, setStatus] = useState("Connecting...");
   const [peerId, setPeerId] = useState(null); // Used to track if we are matched
-
+  const [messages, setMessages] = useState([]); // For chat feature
+  const [currentMessage, setCurrentMessage] = useState(""); // For chat input
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState("");
+  const typingTimeoutRef = useRef(null);
   const [seconds, setSeconds] = useState(0);   // timer state 
   const [timerRunning, setTimerRunning] = useState(false);
 
@@ -32,6 +36,26 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   // Get logged-in user from storage
   const currentUser = JSON.parse(localStorage.getItem("user")) || {};
 
+  const sendMessage = () => {
+    if(!peerId) return; //🚫 prevent sending if not connected
+    if(!currentMessage.trim()) return; // Don't send empty messages
+    if(typingTimeoutRef.current){
+      clearTimeout(typingTimeoutRef.current);
+    }
+    socketRef.current.emit("stop-typing",{to:peerId});
+    const messageData = {
+      from: currentUser.username || "You",
+      message: currentMessage
+    };
+    //Add to own chat instantly
+    setMessages((prev) => [...prev,messageData]);
+
+    //Send to backend
+    socketRef.current.emit("chat-message",{
+      message: currentMessage
+    });
+    setCurrentMessage(""); // Clear input
+  }
 
   const iceServers = {
     iceServers: [
@@ -128,7 +152,12 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     socket.on("waiting", () => {
       setStatus("Waiting for a partner...");
     });
-
+    socket.on("chat-message",(data)=>{
+      setMessages((prev)=>[...prev,data]);
+    });
+    socket.on("chat-ended",()=>{
+      setMessages([]); // Clear chat messages when chat ends
+    })
     socket.on("matched", async ({ peerId: remotePeerId ,partnerName }) => {
       console.log("🤝 Matched with:", partnerName);
       setPeerId(remotePeerId);
@@ -200,6 +229,15 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       // Optional: Automatically search for new peer
       // socket.emit("join-room");
     });
+
+    socket.on("user-typing",({username})=>{
+      setTypingUser(username);
+      setIsTyping(true);
+    })
+    socket.on("user-stop-typing",()=>{
+      setIsTyping(false);
+      setTypingUser("");
+    })
   };
 
   const createPeerConnection = (targetPeerId) => {
@@ -285,7 +323,10 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
       socketRef.current.disconnect();
       socketRef.current = null;
     }
-
+    if(typingTimeoutRef.current){
+      clearTimeout(typingTimeoutRef.current);
+    }
+    setIsTyping(false);
     setPeerId(null);
     setStatus("Disconnected");
     setTimerRunning(false);
@@ -391,30 +432,72 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
           </div>
         </div>
 
-        {/* QUESTIONS SIDEBAR */}
-        <div className="w-96 bg-slate-900/30 border border-white/10 rounded-3xl overflow-hidden flex flex-col">
-          <div className="p-6 border-b border-white/10">
-            <h2 className="text-lg font-bold">Interview Guide</h2>
-            <p className="text-slate-400 text-xs">Questions to ask</p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {questions.length > 0 ? (
-              questions.map((q, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-2xl bg-slate-950/40 border border-white/5 hover:border-white/10 transition"
-                >
-                  <p className="text-slate-300 text-sm leading-relaxed">{q}</p>
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-slate-500 mt-10">
-                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <p>No questions loaded.</p>
+        {/* Chat SIDEBAR */}
+        <div className="w-96 bg-slate-900/30 border border-white/10 rounded-3xl flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="p-6 border-b border-white/10">
+              <h2 className="text-lg font-bold">Live Chat</h2>
+              <p className="text-slate-400 text-xs">
+                Messages disappear when session ends
+              </p>
               </div>
-            )}
-          </div>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {messages.length>0? (
+                  messages.map((msg,index)=>{
+                    const isOwnMessage = msg.from === currentUser.username;
+                    return (
+                      <div key={index} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                          <div className={`px-4 py-2 rounded-2xl max-w-xs text-sm ${
+                            isOwnMessage ? "bg-indigo-600 text-white": "bg-slate-800 text-slate-200"
+                          }`}>
+                            <div className="text-xs opacity-70 mb-1">
+                              {isOwnMessage?"You":msg.from}
+                            </div>
+                            {msg.message}
+                          </div>
+                      </div>
+                    );
+                  }
+                )):(
+                  <div className="text-center text-slate-500 mt-10">
+                    <p>No messages yet.</p>
+                  </div>
+                )}
+              </div>
+              {/* Typing Indicator */}
+              {isTyping && peerId && (
+                <div className="px-4 pb-2 text-sm text-slate-400 italic">
+                  {typingUser} is typing <span className="animate-pulse">...</span>
+                </div>
+              )}
+              {/* Input */}
+              <div className="p-4 border-t border-white/10 flex gap-2">
+                <input type="text" value={currentMessage} onChange={(e)=> {setCurrentMessage(e.target.value);
+                if(!peerId) return;
+                if(!socketRef.current) return; 
+
+                if(!e.target.value.trim()){
+                  socketRef.current.emit("stop-typing",{to:peerId});
+                  return;
+                }
+                //Emit typing event
+                socketRef.current.emit("typing",{
+                  to:peerId,
+                  username:currentUser.username
+                });
+                if(typingTimeoutRef.current){
+                  clearTimeout(typingTimeoutRef.current);
+                }
+                // After 1 second of inactivity → stop typing
+                typingTimeoutRef.current= setTimeout(()=>{
+                  socketRef.current.emit("stop-typing",{to:peerId});
+                },1000);
+                } }placeholder="Type a message..." className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500" onKeyDown={(e)=>{
+                  if(e.key==="Enter") sendMessage();
+                }}/>
+                <button onClick={sendMessage} disabled={!peerId} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-semibold transition">Send</button>
+              </div>
         </div>
       </div>
     </div>
