@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import {useNavigate} from "react-router-dom";
 import { io } from "socket.io-client";
 import {
   Mic,
@@ -23,7 +24,11 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   const typingTimeoutRef = useRef(null);
   const [seconds, setSeconds] = useState(0);   // timer state 
   const [timerRunning, setTimerRunning] = useState(false);
-
+  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [myRole, setMyRole] = useState(null);
+  const [aiAnswer, setAiAnswer] = useState(null);
+  const [interviewCompleted, setInterviewCompleted] = useState(false);
+  const [isAnswering, setIsAnswering] = useState(false);
   // Refs for persistent objects
   const socketRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -32,7 +37,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   const peerConnectionRef = useRef(null);
   const remoteStreamRef = useRef(new MediaStream());
   const pendingIceCandidatesRef = useRef([]);
-
+  const navigate = useNavigate();
   // Get logged-in user from storage
   const currentUser = JSON.parse(localStorage.getItem("user")) || {};
 
@@ -158,6 +163,36 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     socket.on("chat-ended", () => {
       setMessages([]); // Clear chat messages when chat ends
     })
+    socket.on("question-received",(data)=>{
+      console.log("📩 Question received:",data);
+      setCurrentQuestion(data);
+      setIsAnswering(false);
+      const myUserId = currentUser.id || currentUser._id; //make sure you store this properly
+      if(data.interviewerId===myUserId){
+        setMyRole("interviewer");
+      }else{
+        setMyRole("candidate");
+      }
+    });
+    socket.on("turn-updated",(data)=>{
+      setCurrentQuestion(null);
+      setAiAnswer(null);
+      setIsAnswering(false);
+      const myUserId = currentUser.id;
+      if(data.currentTurn===myUserId){
+        setMyRole("interviewer");
+      }else{
+        setMyRole("candidate");
+      }
+    });
+    socket.on("ai-answer",(data)=>{
+      setAiAnswer(data.answer);
+    });
+    socket.on("interview-completed",()=>{
+      console.log("🎉 Interview completed!");
+
+      setInterviewCompleted(true);
+    });
     socket.on("matched", async ({ peerId: remotePeerId, partnerName }) => {
       console.log("🤝 Matched with:", partnerName);
       setPeerId(remotePeerId);
@@ -208,9 +243,13 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
         }
       }
     });
-
+    socket.on("question-error",()=>{
+      alert("Interview cannot start.Not enough prepared questions");
+      navigate("/dashboard");
+    })
     // 🔴 HANDLE PARTNER DISCONNECT
     socket.on("peer-disconnected", () => {
+      setCurrentQuestion(null);
       setTimerRunning(false);
       setSeconds(0);
       alert("Partner has left the interview.");
@@ -302,6 +341,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
   };
 
   const handleLeaveButton = () => {
+    if(!interviewCompleted) return;
     cleanupConnection();
     if (onLeave) onLeave();
   };
@@ -356,6 +396,11 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
               {peerId ? formatTime(seconds) : "00:00:00"}
             </span>
             <span className="ml-3 text-xs text-slate-400">({status})</span>
+            {myRole && (
+              <span className="ml-4 text-sm font-semibold text-indigo-400">
+                Role: {myRole.toUpperCase()}
+              </span>
+            )}
           </div>
         </div>
 
@@ -401,6 +446,56 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
               className="w-full h-full object-cover transform scale-x-[-1]" // Mirror effect
             />
           </div>
+{/* ===============================
+      QUESTION + ANSWER OVERLAY
+   =============================== */}
+
+{currentQuestion && (
+  <div className="absolute top-24 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl space-y-4 z-40">
+
+    <div className="bg-slate-900/95 border border-indigo-500/30 px-8 py-6 rounded-2xl text-center shadow-2xl">
+      <p className="text-xs text-indigo-400 mb-2 uppercase tracking-widest">
+        {currentQuestion.section}
+      </p>
+      <p className="text-lg font-semibold text-white leading-relaxed">
+        {currentQuestion.question}
+      </p>
+    </div>
+
+    {aiAnswer && (
+      <div className="bg-green-900/95 border border-green-500/30 px-8 py-6 rounded-2xl max-h-[300px] overflow-y-auto shadow-2xl">
+        <p className="text-xs text-green-400 mb-2 uppercase tracking-widest">
+          AI Suggested Answer
+        </p>
+        <p className="text-white whitespace-pre-wrap">
+          {aiAnswer}
+        </p>
+      </div>
+    )}
+
+  </div>
+)}
+
+{interviewCompleted && (
+  <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm">
+    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-10 py-8 rounded-3xl shadow-2xl text-center space-y-4">
+      <h2 className="text-2xl font-bold text-white">
+        🎉 Interview Completed!
+      </h2>
+      <p className="text-white/90">
+        You have successfully completed all questions.
+      </p>
+
+      <button
+        onClick={handleLeaveButton}
+        disabled={!interviewCompleted}
+        className={`mt-4 px-6 py-3 rounded-xl font-semibold transition ${interviewCompleted ? "bg-red-600 hover:bg-red-700 text-white":"bg-gray-600 text-gray-300 cursor-not-allowed opacity-60"}`}
+      >
+        End Call
+      </button>
+    </div>
+  </div>
+)}
 
           {/* Controls */}
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-slate-950/80 border border-white/10 p-3 rounded-2xl z-30">
@@ -413,13 +508,52 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
             </button>
 
             <button
+
               onClick={toggleVideo}
               className={`p-4 rounded-xl transition-all ${isVideoOn ? "bg-slate-800 hover:bg-slate-700" : "bg-red-500/20 text-red-500 border border-red-500/50"
                 }`}
             >
               {isVideoOn ? <Video size={24} /> : <VideoOff size={24} />}
+            
             </button>
-
+            {/* ✅ ASK QUESTION BUTTON */}
+            <button
+              onClick={() => {
+                if (!peerId) return;
+                if (!socketRef.current) return;
+                socketRef.current.emit("ask-question");
+              }}
+              disabled={!peerId|| myRole!=="interviewer"}
+              className="px-6 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-40"
+            >
+              Ask Question
+            </button>
+            {myRole === "candidate" && currentQuestion&&(
+              <button
+                onClick={()=>{
+                  if(!socketRef.current) return;
+                  socketRef.current.emit("start-answer");
+                  setIsAnswering(true);
+                }}
+                disabled={isAnswering}
+                className="px-6 py-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold transition"
+              >
+                Start Answer
+              </button>
+            )}
+            {myRole==="candidate" && currentQuestion &&(
+              <button
+                onClick={()=>{
+                  if(!socketRef.current) return;
+                  socketRef.current.emit("stop-answer");
+                  setIsAnswering(false);
+                }}
+                disabled={!isAnswering}
+                className="px-6 py-4 rounded-xl bg-yellow-600 hover:bg-yellow-700 text-white font-semibold transition"
+              >
+                Stop Answer
+              </button>
+            )}
             <button
               onClick={handleLeaveButton}
               className="px-8 py-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold flex items-center gap-2 transition-all"
@@ -501,6 +635,7 @@ const InterviewRoom = ({ partnerName = "Partner", questions = [], onLeave }) => 
     </div>
   );
 };
+
 
 export default InterviewRoom;
 

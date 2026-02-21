@@ -1,13 +1,11 @@
 //imports 
 const express = require('express');
-const router = express.Router();//Creates an isolated router module.Intent: keep question-related logic separate from other routes.
-const fetch = require('node-fetch') //used to call the AI worker service for generating questions from resume data.
-const Questionset = require('../models/Questionset'); //Mongoose model for storing generated questionsets in MongoDB 
-const Resume = require('../models/Resume'); //Mongoose model for accessing resume data, needed to link questionset to the source resume version.
+const router = express.Router();
+const fetch = require('node-fetch');
+const Questionset = require('../models/Questionset'); 
+const Resume = require('../models/Resume');
 
-// NOTE: For local development the AI worker in this workspace is started on port 8001.
-// To change this without editing code, set the environment variable `AI_WORKER_URL`.
-const AI_WORKER_URL = process.env.AI_WORKER_URL || 'http://localhost:8001'; //URL of the AI worker service, configurable via environment variable.
+const AI_WORKER_URL = process.env.AI_WORKER_URL || 'http://localhost:8001';
 
 function normalizeQuestionsPayload(payload) {
     if (Array.isArray(payload)) return payload;
@@ -18,7 +16,13 @@ function normalizeQuestionsPayload(payload) {
 
 async function saveQuestionsForUser(user_id, questionsPayload) {
     const resume = await Resume.findOne({ user_id });
-    const normalizedQuestions = normalizeQuestionsPayload(questionsPayload);
+    const normalizedQuestions = normalizeQuestionsPayload(questionsPayload)
+                                .map(q => ({
+                                    section: q.section,
+                                    question: q.question,
+                                    answer: q.answer || "",
+                                    used: false
+                                }));
 
     const saved = await Questionset.findOneAndUpdate(
         { user_id },
@@ -34,8 +38,38 @@ async function saveQuestionsForUser(user_id, questionsPayload) {
     return saved;
 }
 
+//////////////////////////////////////////////////////////////
+// ✅ STEP 1 ADDED: CHECK IF USER CAN START INTERVIEW
+// GET /questions/check/:userId
+//////////////////////////////////////////////////////////////
+
+router.get('/check/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const questionSet = await Questionset.findOne({ user_id: userId });
+
+        if (!questionSet) {
+            return res.json({ canStart: false });
+        }
+
+        const unusedQuestions = questionSet.questions.filter(q => !q.used);
+
+        if (unusedQuestions.length < 5) {
+            return res.json({ canStart: false });
+        }
+
+        return res.json({ canStart: true });
+
+    } catch (err) {
+        console.error("Error checking questions:", err);
+        return res.status(500).json({ canStart: false });
+    }
+});
+
+//////////////////////////////////////////////////////////////
+
 // Route for AI worker to POST generated questions back to backend
-// POST /questions/save body: { user_id, questions }
 router.post('/save', async (req, res) => {
     try {
         const { user_id, questions } = req.body;
@@ -52,7 +86,6 @@ router.post('/save', async (req, res) => {
 });
 
 // GET /questions/:user_id
-// Fetch questions for a specific user
 router.get('/:user_id', async (req, res) => {
     try {
         const { user_id } = req.params;
@@ -68,19 +101,36 @@ router.get('/:user_id', async (req, res) => {
 });
 
 // POST /questions body: {user_id}
-// Trigger question generation and return questions
 router.post('/', async (req, res) => {
     try {
         const { user_id } = req.body;
-        if (!user_id) return res.status(400).json({ error: 'user_id is required' }); //validate user_id presence
+        if (!user_id) return res.status(400).json({ error: 'user_id is required' });
 
-        const resume = await Resume.findOne({ user_id }); //Queries database for user’s resume.
+        const REQUIRED = 5;
+        const existing = await Questionset.findOne({ user_id });
+
+        if (existing) {
+            const unused = existing.questions.filter(q => !q.used);
+
+            if (unused.length >= REQUIRED) {
+                console.log("⚡ Returning stored unused questions");
+
+                return res.json({
+                    ok: true,
+                    id: existing._id,
+                    message: "Using stored unused questions",
+                    questions: unused.slice(0, REQUIRED)
+                });
+            }
+        }
+
+        const resume = await Resume.findOne({ user_id });
         if (!resume || !resume.structured || Object.keys(resume.structured).length === 0) {
             return res.status(400).json({ error: 'Structured resume not found. Please upload and save resume first.' });
         }
 
-        // ask AI worker to generate questions 
-        //Sends request to AI microservice endpoint /generate_questions.
+        console.log("🤖 Generating fresh questions via AI worker...");
+
         const aiResp = await fetch(`${AI_WORKER_URL}/generate_questions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -92,17 +142,13 @@ router.post('/', async (req, res) => {
             return res.status(aiResp.status).json({ error: 'AI worker error', status: aiResp.status, details: errorText });
         }
 
-        const aiJson = await aiResp.json(); //Parse AI response body.
+        const aiJson = await aiResp.json();
         if (aiJson && aiJson.status === 'error') {
             return res.status(502).json({ error: 'AI worker failed', details: aiJson.message || aiJson });
         }
 
-        // AI worker returns questions directly
-        // Save them and return them
-        let savedId;
         let questions = [];
 
-        // Handle different possible response structures
         if (Array.isArray(aiJson)) {
             questions = aiJson;
         } else if (aiJson && Array.isArray(aiJson.questions)) {
@@ -112,15 +158,40 @@ router.post('/', async (req, res) => {
         }
 
         if (questions.length > 0) {
-            const saved = await saveQuestionsForUser(user_id, questions);
-            savedId = saved._id;
 
-            return res.json({
-                ok: true,
-                id: savedId,
-                message: 'Questions generation completed',
-                questions: questions // Return questions to client
-            });
+            if (existing) {
+
+                const newQuestions = questions.map(q => ({
+                    section: q.section,
+                    question: q.question,
+                    answer: q.answer || "",
+                    used: false
+                }));
+
+                existing.questions.push(...newQuestions);
+                await existing.save();
+
+                const finalQuestions = existing.questions
+                    .filter(q => !q.used)
+                    .slice(0, REQUIRED);
+
+                return res.json({
+                    ok: true,
+                    message: "Questions ready",
+                    questions: finalQuestions
+                });
+
+            } else {
+
+                const saved = await saveQuestionsForUser(user_id, questions);
+
+                return res.json({
+                    ok: true,
+                    id: saved._id,
+                    message: "Questions ready",
+                    questions: saved.questions.slice(0, REQUIRED)
+                });
+            }
         }
 
         return res.status(500).json({ error: "Failed to extract questions from AI response", details: aiJson });
@@ -132,4 +203,3 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
-

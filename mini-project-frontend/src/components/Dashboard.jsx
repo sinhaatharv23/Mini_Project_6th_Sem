@@ -17,7 +17,10 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-
+  const [historyData, setHistoryData] = useState([]);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Get user from storage
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -84,7 +87,28 @@ const Dashboard = () => {
   useEffect(() => {
     fetchResume();
   }, [user]);
+  // --- LOAD TOTAL SESSION COUNT ---
+useEffect(() => {
+  async function loadSessionCount() {
+    if (!user?._id && !user?.id) return;
 
+    try {
+      const resp = await fetch(
+        `http://localhost:5000/history/${user._id || user.id}`
+      );
+
+      const data = await resp.json();
+
+      if (resp.ok) {
+        setTotalSessions(data.totalSessions);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  loadSessionCount();
+}, [user]);
   const handleResumeSaved = () => {
     setShowUploadModal(false);
     fetchResume(); // Refresh data
@@ -118,7 +142,39 @@ const Dashboard = () => {
       setGenerating(false);
     }
   }
+  // --- FETCH SESSION HISTORY ---
+async function fetchSessionHistory() {
+  if (!user?._id && !user?.id) return;
 
+  setLoadingHistory(true);
+
+  try {
+    const resp = await fetch(
+      `http://localhost:5000/history/${user._id || user.id}`
+    );
+
+    const data = await resp.json();
+    console.log("History API response:",data);
+    if (resp.ok) {
+      setTotalSessions(data.totalSessions);
+      setHistoryData(data.recentSessions);
+      setShowHistoryModal(true);
+    }
+  } catch (err) {
+    console.error("History fetch error:", err);
+  } finally {
+    setLoadingHistory(false);
+  }
+}
+function formatDuration(seconds) {
+  if (!seconds) return "0s";
+
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  return `${hrs}h ${mins}m ${secs}s`;
+}
   return (
     // 'min-h-screen' ensures full height. 
     // We removed 'overflow-hidden' from the body so the scroll animation can actually trigger if needed.
@@ -251,13 +307,13 @@ const Dashboard = () => {
         {/* 2. STATS ROW (Fixed Height) */}
         <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Card 1 */}
-          <div className="p-5 rounded-3xl bg-slate-900/50 border border-white/5 flex flex-col justify-between h-36 relative overflow-hidden group hover:border-white/10 transition-colors">
+          <div onClick={fetchSessionHistory} className="p-5 rounded-3xl bg-slate-900/50 border border-white/5 flex flex-col justify-between h-36 relative overflow-hidden group hover:border-white/10 transition-colors cursor-pointer">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <Calendar size={60} />
             </div>
             <div>
               <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Sessions</p>
-              <h3 className="text-3xl font-bold text-white mt-1">24</h3>
+              <h3 className="text-3xl font-bold text-white mt-1">{totalSessions}</h3>
             </div>
             <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 w-fit px-2 py-1 rounded-full">
               <span>+2 THIS WEEK</span>
@@ -355,7 +411,28 @@ const Dashboard = () => {
 
           {/* JOIN MEETING BUTTON */}
           <button
-            onClick={() => navigate('/room')}
+            // onClick={() => navigate('/room')}
+            onClick={async () => {
+  if (!user?._id && !user?.id) return;
+
+  try {
+    const resp = await fetch(
+      `http://localhost:5000/questions/check/${user._id || user.id}`
+    );
+    const data = await resp.json();
+
+    if (!data.canStart) {
+      alert("Please generate questions before starting interview.");
+      return;
+    }
+
+    navigate('/room');
+
+  } catch (err) {
+    console.error("Error checking questions:", err);
+    alert("Something went wrong. Try again.");
+  }
+}}
             className="group relative w-full h-full rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-900 p-1 text-left shadow-2xl shadow-indigo-900/20 transition-all hover:scale-[1.01] hover:shadow-indigo-900/40"
           >
             <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')] opacity-10 mix-blend-overlay bg-cover bg-center transition-transform duration-700 group-hover:scale-110"></div>
@@ -412,7 +489,75 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      {/* SESSION HISTORY MODAL */}
+{showHistoryModal && (
+  <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-3xl max-h-[85vh] overflow-y-auto shadow-2xl relative">
 
+      <button
+        onClick={() => setShowHistoryModal(false)}
+        className="absolute top-4 right-4 text-slate-400 hover:text-white"
+      >
+        ✕
+      </button>
+
+      <h2 className="text-2xl font-bold mb-6 text-white">
+        Recent Sessions
+      </h2>
+
+      {loadingHistory && (
+        <p className="text-slate-400">Loading...</p>
+      )}
+
+      {!loadingHistory && historyData.length === 0 && (
+        <p className="text-slate-500">No session history yet.</p>
+      )}
+
+      {!loadingHistory &&
+        historyData.map((session, index) => (
+          <div
+            key={index}
+            className="mb-6 p-5 rounded-2xl bg-slate-800/50 border border-white/5"
+          >
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <p className="text-white font-semibold">
+                  Partner: {session.partner?.username}
+                </p>
+                <p className="text-sm text-slate-400">
+                  Duration: {formatDuration(session.duration)}
+                </p>
+              </div>
+
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  session.status === "completed"
+                    ? "bg-green-500/20 text-green-400"
+                    : "bg-red-500/20 text-red-400"
+                }`}
+              >
+                {session.status.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {session.questions.map((q, i) => (
+                <div key={i} className="border-l-2 border-indigo-500 pl-4">
+                  <p className="text-indigo-300 text-sm font-semibold">
+                    {q.section}
+                  </p>
+                  <p className="text-white text-sm">{q.question}</p>
+                  <p className="text-slate-400 text-sm mt-1">
+                    Answer: {q.answer}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+    </div>
+  </div>
+)}
     </div>
   );
 };

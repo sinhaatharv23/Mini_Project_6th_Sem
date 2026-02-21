@@ -4,7 +4,13 @@ const { Schema } = mongoose;
 const questionSchema = new Schema({
   section: String,
   question: String,
-  answer: String
+  answer: String,
+
+  //Edited by: Atharva
+  used: {
+    type: Boolean,
+    default:false
+  }
 }, { _id: false });
 
 const questionsetSchema = new Schema({
