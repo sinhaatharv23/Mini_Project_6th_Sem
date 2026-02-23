@@ -23,14 +23,10 @@ const Dashboard = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
 
-  const user = {
-    username: "Frontend Dev",
-    email: "dev@test.com",
-    id: "dummy_id_123"
-  };
+  
 
   // Get user from storage
-  /*const user = JSON.parse(localStorage.getItem("user") || "null");
+  const user = JSON.parse(localStorage.getItem("user") || "null");
 
 
   // ✅ SAFETY CHECK (Protect Dashboard)
@@ -38,7 +34,7 @@ const Dashboard = () => {
     if (!user) {
       navigate("/");
     }
-  }, [user, navigate]);*/
+  }, [user, navigate]);
 
   // ✅ BETTER INITIALS LOGIC (Pro Look)
   const initials = user?.username
@@ -296,23 +292,102 @@ function formatDuration(seconds) {
         </div>
       </div>
 
+      {/* =======================
+    CENTER DASHBOARD LABEL
+======================= */}
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
+        <div className="px-6 py-2 bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-full shadow-xl">
+          <span className="text-sm font-semibold tracking-wide text-slate-200">
+            Dashboard
+          </span>
+        </div>
+      </div>
+
+
 
 
       {/* --- MAIN CONTENT --- */}
       {/* Added pt-32 to clear the floating header */}
-      <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-8 pb-8 pt-32">
+      <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-8 pb-8 pt-32 gap-8">
 
         {/* 1. WELCOME SECTION (Compact) */}
         <div className="flex-none mb-8">
           <h1 className="text-4xl font-light text-white mb-2">
-            Hello, <span className="font-semibold">{user?.username}</span>.
+            Hello, <span className="font-black italic uppercase leading-tight">{user?.username}</span>.
           </h1>
           <p className="text-slate-500">Ready to prepare for your next big opportunity?</p>
         </div>
 
 
+        {/* 3. MAIN ACTIONS (Flex-1 to Fill Screen) */}
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[270px]">
+
+          {/* JOIN MEETING BUTTON */}
+          <button
+          
+            // onClick={() => navigate('/room')}
+            onClick={async () => {
+  if (!user?._id && !user?.id) return;
+
+  try {
+    const resp = await fetch(
+      `http://localhost:5000/questions/check/${user._id || user.id}`
+    );
+    const data = await resp.json();
+
+    if (!data.canStart) {
+      alert("Please generate questions before starting interview.");
+      return;
+    }
+
+    navigate('/room');
+
+  } catch (err) {
+    console.error("Error checking questions:", err);
+    alert("Something went wrong. Try again.");
+  }
+}}
+            className="group relative w-full h-full rounded-3xl overflow-hidden bg-gradient-to-br from-slate-300 via-blue-600 to-blue-900 p-1 text-left shadow-2xl shadow-indigo-900/20 transition-all hover:scale-[1.01] hover:shadow-indigo-900/40"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')] opacity-10 mix-blend-overlay bg-cover bg-center transition-transform duration-700 group-hover:scale-110"></div>
+
+            <div className="relative h-full w-full bg-slate-950/0 p-8 flex flex-col justify-end">
+              <div className="mb-auto bg-white/10 w-14 h-14 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-colors shadow-lg">
+                <Video className="text-white" size={28} />
+              </div>
+              <div>
+                <h2 className="text-4xl font-bold text-white mb-2">Join Meeting</h2>
+                <p className="text-indigo-200/80 text-base">Start a P2P interview session instantly.</p>
+              </div>
+            </div>
+          </button>
+
+
+          {/* UPLOAD RESUME BUTTON */}
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="group relative w-full h-full rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 p-8 text-left transition-all hover:border-slate-700 hover:bg-slate-800/80"
+          >
+            <div className="absolute top-8 right-8 text-slate-700 group-hover:text-slate-600 transition-colors">
+              <Upload size={48} strokeWidth={1} />
+            </div>
+
+            <div className="flex flex-col justify-end h-full">
+              <div className="mb-auto bg-slate-800 w-14 h-14 rounded-2xl flex items-center justify-center border border-white/5 group-hover:bg-slate-700 transition-colors shadow-lg">
+                <Upload className="text-slate-300" size={24} />
+              </div>
+              <div>
+                <h2 className="text-4xl font-bold text-slate-200 mb-2 group-hover:text-white">Upload Resume</h2>
+                <p className="text-slate-500 text-base group-hover:text-slate-400">Parse your CV for better peer matching.</p>
+              </div>
+            </div>
+          </button>
+
+        </div>
+
+
         {/* 2. STATS ROW (Fixed Height) */}
-        <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="flex-none grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {/* Card 1 */}
           <div onClick={fetchSessionHistory} className="p-5 rounded-3xl bg-slate-900/50 border border-white/5 flex flex-col justify-between h-36 relative overflow-hidden group hover:border-white/10 transition-colors cursor-pointer">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -334,15 +409,7 @@ function formatDuration(seconds) {
               <h3 className="text-3xl font-bold text-white mt-1">4.8</h3>
             </div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-indigo-500 h-full w-[96%] rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="p-5 rounded-3xl bg-slate-900/50 border border-white/5 flex flex-col justify-between h-36 border-dashed border-slate-800 hover:bg-slate-900/80 transition-colors cursor-pointer">
-            <div className="flex justify-center items-center h-full text-slate-600 gap-2 group">
-              <MoreHorizontal size={20} className="group-hover:text-slate-400 transition-colors" />
-              <span className="text-sm font-medium group-hover:text-slate-400 transition-colors">View Schedule</span>
+              <div className="bg-blue-700 h-full w-[96%] rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
             </div>
           </div>
         </div>
@@ -413,71 +480,51 @@ function formatDuration(seconds) {
           </div>
         )}
 
-        {/* 3. MAIN ACTIONS (Flex-1 to Fill Screen) */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
-
-          {/* JOIN MEETING BUTTON */}
-          <button
-            // onClick={() => navigate('/room')}
-            onClick={async () => {
-  if (!user?._id && !user?.id) return;
-
-  try {
-    const resp = await fetch(
-      `http://localhost:5000/questions/check/${user._id || user.id}`
-    );
-    const data = await resp.json();
-
-    if (!data.canStart) {
-      alert("Please generate questions before starting interview.");
-      return;
-    }
-
-    navigate('/room');
-
-  } catch (err) {
-    console.error("Error checking questions:", err);
-    alert("Something went wrong. Try again.");
-  }
-}}
-            className="group relative w-full h-full rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-900 p-1 text-left shadow-2xl shadow-indigo-900/20 transition-all hover:scale-[1.01] hover:shadow-indigo-900/40"
-          >
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')] opacity-10 mix-blend-overlay bg-cover bg-center transition-transform duration-700 group-hover:scale-110"></div>
-
-            <div className="relative h-full w-full bg-slate-950/0 p-8 flex flex-col justify-end">
-              <div className="mb-auto bg-white/10 w-14 h-14 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-colors shadow-lg">
-                <Video className="text-white" size={28} />
-              </div>
-              <div>
-                <h2 className="text-4xl font-bold text-white mb-2">Join Meeting</h2>
-                <p className="text-indigo-200/80 text-base">Start a P2P interview session instantly.</p>
-              </div>
-            </div>
-          </button>
-
-
-          {/* UPLOAD RESUME BUTTON */}
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="group relative w-full h-full rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 p-8 text-left transition-all hover:border-slate-700 hover:bg-slate-800/80"
-          >
-            <div className="absolute top-8 right-8 text-slate-700 group-hover:text-slate-600 transition-colors">
-              <Upload size={48} strokeWidth={1} />
-            </div>
-
-            <div className="flex flex-col justify-end h-full">
-              <div className="mb-auto bg-slate-800 w-14 h-14 rounded-2xl flex items-center justify-center border border-white/5 group-hover:bg-slate-700 transition-colors shadow-lg">
-                <Upload className="text-slate-300" size={24} />
-              </div>
-              <div>
-                <h2 className="text-4xl font-bold text-slate-200 mb-2 group-hover:text-white">Upload Resume</h2>
-                <p className="text-slate-500 text-base group-hover:text-slate-400">Parse your CV for better peer matching.</p>
-              </div>
-            </div>
-          </button>
-
-        </div>
+        
       </main>
+
+      <footer className="border-t border-white/5 bg-slate-950/60 backdrop-blur-sm mt-16">
+  <div className="max-w-6xl mx-auto px-8 py-10 grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
+
+    {/* Brand */}
+    <div>
+      <h3 className="text-white font-semibold text-lg mb-3">
+        PeerInterview<span className="text-blue-500">.io</span>
+      </h3>
+      <p className="text-slate-500 leading-relaxed">
+        Practice peer-to-peer interviews and level up your technical confidence.
+      </p>
+    </div>
+
+    {/* Product */}
+    <div>
+      <h4 className="text-white font-medium mb-3">Product</h4>
+      <ul className="space-y-2 text-slate-500">
+        <li className="hover:text-white transition-colors cursor-pointer">Dashboard</li>
+        <li className="hover:text-white transition-colors cursor-pointer">Sessions</li>
+        <li className="hover:text-white transition-colors cursor-pointer">Upload Resume</li>
+      </ul>
+    </div>
+
+    {/* Legal / Info */}
+    <div>
+      <h4 className="text-white font-medium mb-3">Company</h4>
+      <ul className="space-y-2 text-slate-500">
+        <li className="hover:text-white transition-colors cursor-pointer">About</li>
+        <li className="hover:text-white transition-colors cursor-pointer">Privacy Policy</li>
+        <li className="hover:text-white transition-colors cursor-pointer">Terms of Service</li>
+      </ul>
+    </div>
+  </div>
+
+  {/* Bottom Bar */}
+  <div className="border-t border-white/5">
+    <div className="max-w-6xl mx-auto px-8 py-4 text-xs text-slate-500 flex flex-col md:flex-row justify-between items-center gap-2">
+      <span>© {new Date().getFullYear()} PeerInterview.io. All rights reserved.</span>
+      <span>Built for serious interview preparation.</span>
+    </div>
+  </div>
+</footer>
 
       {/* UPLOAD MODAL */}
       {showUploadModal && (

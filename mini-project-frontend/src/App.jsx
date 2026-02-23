@@ -35,9 +35,11 @@ function App() {
         {/* Protect dashboard and room routes */}
         
 
-        <Route path="/dashboard" element={<Dashboard />} />
+        
 
         <Route element={<PrivateRoute />}>
+
+        <Route path="/dashboard" element={<Dashboard />} />
 
 
        <Route 

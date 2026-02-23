@@ -527,6 +527,56 @@ const LoginScreen = ({ onJoin }) => {
         </div>
       </section>
 
+      {/* =======================
+    FOOTER
+======================= */}
+<footer className="border-t border-white/5 bg-slate-950 relative">
+  <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-3 gap-10 text-sm">
+
+    {/* Brand */}
+    <div>
+      <h3 className="text-white font-semibold text-xl mb-4">
+        PeerInterview<span className="text-blue-500">.io</span>
+      </h3>
+      <p className="text-slate-400 leading-relaxed">
+        Real peer-to-peer mock interviews.  
+        Structured practice. Honest feedback.
+      </p>
+    </div>
+
+    {/* Navigation */}
+    <div>
+      <h4 className="text-white font-medium mb-4">Explore</h4>
+      <ul className="space-y-3 text-slate-400">
+        <li className="hover:text-white transition cursor-pointer"
+            onClick={() => scrollToSection(homeRef)}>Home</li>
+        <li className="hover:text-white transition cursor-pointer"
+            onClick={() => scrollToSection(howItWorksRef)}>How it works</li>
+        <li className="hover:text-white transition cursor-pointer"
+            onClick={() => scrollToSection(getStartedRef)}>Get Started</li>
+      </ul>
+    </div>
+
+    {/* Info */}
+    <div>
+      <h4 className="text-white font-medium mb-4">Company</h4>
+      <ul className="space-y-3 text-slate-400">
+        <li className="hover:text-white transition cursor-pointer">About</li>
+        <li className="hover:text-white transition cursor-pointer">Privacy Policy</li>
+        <li className="hover:text-white transition cursor-pointer">Terms</li>
+      </ul>
+    </div>
+  </div>
+
+  {/* Bottom Bar */}
+  <div className="border-t border-white/5">
+    <div className="max-w-7xl mx-auto px-6 py-6 text-xs text-slate-500 flex flex-col md:flex-row justify-between items-center gap-3">
+      <span>© {new Date().getFullYear()} PeerInterview.io. All rights reserved.</span>
+      <span>Built for serious interview preparation.</span>
+    </div>
+  </div>
+</footer>
+
     </div>
   );
 };
