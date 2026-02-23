@@ -33,9 +33,12 @@ function App() {
         {/* ROUTE 2: The User Dashboard (Static Page) */}
         {/* <Route path="/dashboard" element={<Dashboard />} />  */}
         {/* Protect dashboard and room routes */}
-        <Route element={<PrivateRoute />}>
+        
 
         <Route path="/dashboard" element={<Dashboard />} />
+
+        <Route element={<PrivateRoute />}>
+
 
        <Route 
        path="/room" 

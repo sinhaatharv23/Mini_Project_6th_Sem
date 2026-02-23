@@ -22,8 +22,15 @@ const Dashboard = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+
+  const user = {
+    username: "Frontend Dev",
+    email: "dev@test.com",
+    id: "dummy_id_123"
+  };
+
   // Get user from storage
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  /*const user = JSON.parse(localStorage.getItem("user") || "null");
 
 
   // ✅ SAFETY CHECK (Protect Dashboard)
@@ -31,7 +38,7 @@ const Dashboard = () => {
     if (!user) {
       navigate("/");
     }
-  }, [user, navigate]);
+  }, [user, navigate]);*/
 
   // ✅ BETTER INITIALS LOGIC (Pro Look)
   const initials = user?.username
