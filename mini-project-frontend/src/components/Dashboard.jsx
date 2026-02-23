@@ -295,13 +295,17 @@ function formatDuration(seconds) {
       {/* =======================
     CENTER DASHBOARD LABEL
 ======================= */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
-        <div className="px-6 py-2 bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-full shadow-xl">
-          <span className="text-sm font-semibold tracking-wide text-slate-200">
-            Dashboard
-          </span>
-        </div>
-      </div>
+      <div
+  className={`fixed z-50 transition-all duration-700 ease-in-out left-1/2 -translate-x-1/2 ${
+    scrolled ? 'top-6 scale-95' : 'top-8'
+  }`}
+>
+  <div className="px-10 py-4 bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
+    <span className="text-xl font-bold tracking-wider text-blue-400 uppercase">
+      Dashboard
+    </span>
+  </div>
+</div>
 
 
 
